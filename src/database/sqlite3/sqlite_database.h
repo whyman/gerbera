@@ -218,7 +218,7 @@ public:
 
 private:
     std::unique_ptr<SQLRow> nextRow() override;
-    unsigned long long getNumRows() const override { return nrow; }
+    [[nodiscard]] uint64_t getRowCount() const override { return nrow; }
 
     char** table;
     char** row;

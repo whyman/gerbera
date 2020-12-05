@@ -88,9 +88,6 @@ enum {
 /* table quote with dot */
 #define TQD(data1, data2) TQ(data1) << '.' << TQ(data2)
 
-#define SEL_F_QUOTED << TQ('f') <<
-#define SEL_RF_QUOTED << TQ("rf") <<
-
 // end quote, space, f quoted, dot, begin quote
 #define SEL_EQ_SP_FQ_DT_BQ << QTE << ',' << TQ('f') << '.' << QTB <<
 #define SEL_EQ_SP_RFQ_DT_BQ << QTE << ',' << TQ("rf") << '.' << QTB <<
@@ -1202,7 +1199,7 @@ std::unique_ptr<std::unordered_set<int>> SQLDatabase::getObjects(int parentID, b
     auto res = select(q);
     if (res == nullptr)
         throw_std_runtime_error("db error");
-    if (res->getNumRows() == 0)
+    if (res->getRowCount() == 0)
         return nullptr;
 
     auto ret = std::make_unique<std::unordered_set<int>>();

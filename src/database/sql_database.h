@@ -73,7 +73,7 @@ public:
     //SQLResult();
     virtual ~SQLResult() = default;
     virtual std::unique_ptr<SQLRow> nextRow() = 0;
-    virtual unsigned long long getNumRows() const = 0;
+    virtual uint64_t getRowCount() const = 0;
 };
 
 class SQLDatabase : public Database {

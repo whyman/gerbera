@@ -107,8 +107,6 @@ PRAGMA foreign_keys = ON;"
 #define SQLITE3_UPDATE_5_6_2 "CREATE INDEX grb_config_value_item ON grb_config_value(item)"
 #define SQLITE3_UPDATE_5_6_3 "UPDATE \"mt_internal_setting\" SET \"value\"='6' WHERE \"key\"='db_version' AND \"value\"='5'"
 
-#define SL3_INITITAL_QUEUE_SIZE 20
-
 Sqlite3Database::Sqlite3Database(std::shared_ptr<Config> config, std::shared_ptr<Timer> timer)
     : SQLDatabase(std::move(config))
     , timer(std::move(timer))

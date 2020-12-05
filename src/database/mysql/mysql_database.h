@@ -92,7 +92,7 @@ public:
 private:
     int nullRead;
     std::unique_ptr<SQLRow> nextRow() override;
-    unsigned long long getNumRows() const override { return mysql_num_rows(mysql_res); }
+    uint64_t getRowCount() const override { return mysql_num_rows(mysql_res); }
     MYSQL_RES* mysql_res;
 
     friend class MysqlRow;
