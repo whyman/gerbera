@@ -90,6 +90,7 @@ add_library(libgerbera STATIC
         src/config/directory_tweak.cc
         src/content_manager.cc
         src/content_manager.h
+        src/contrib/EnumBitmask.hpp
         src/contrib/md5.c
         src/contrib/md5.h
         src/device_description_handler.cc

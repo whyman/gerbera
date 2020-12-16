@@ -45,6 +45,7 @@ namespace fs = std::filesystem;
 #include "common.h"
 #include "metadata/metadata_handler.h"
 #include "util/tools.h"
+#include "contrib/EnumBitmask.hpp"
 
 // forward declaration
 class Database;
@@ -56,21 +57,30 @@ class Database;
 #define OBJECT_TYPE_ITEM_EXTERNAL_URL 0x00000008u
 #define OBJECT_TYPE_ITEM_INTERNAL_URL 0x00000010u
 
+enum class CDSObjectType : uint8_t {
+    Container = 1,
+    Item = 2,
+    ActiveItem = 4,
+    ExternalUrl = 8,
+    InternalUrl = 16
+};
+DEFINE_BITMASK_OPERATORS(CDSObjectType);
+
 #define STRING_OBJECT_TYPE_CONTAINER "container"
 #define STRING_OBJECT_TYPE_ITEM "item"
 #define STRING_OBJECT_TYPE_ACTIVE_ITEM "active_item"
 #define STRING_OBJECT_TYPE_EXTERNAL_URL "external_url"
 #define STRING_OBJECT_TYPE_INTERNAL_URL "internal_url"
 
-static constexpr bool IS_CDS_CONTAINER(unsigned int type)
+constexpr bool IS_CDS_CONTAINER(CDSObjectType type)
 {
     return type & OBJECT_TYPE_CONTAINER;
 };
-static constexpr bool IS_CDS_ITEM(unsigned int type) { return type & OBJECT_TYPE_ITEM; };
-static constexpr bool IS_CDS_ACTIVE_ITEM(unsigned int type) { return type & OBJECT_TYPE_ACTIVE_ITEM; };
-static constexpr bool IS_CDS_ITEM_EXTERNAL_URL(unsigned int type) { return type & OBJECT_TYPE_ITEM_EXTERNAL_URL; };
-static constexpr bool IS_CDS_ITEM_INTERNAL_URL(unsigned int type) { return type & OBJECT_TYPE_ITEM_INTERNAL_URL; };
-static constexpr bool IS_CDS_PURE_ITEM(unsigned int type) { return type == OBJECT_TYPE_ITEM; };
+static constexpr bool IS_CDS_ITEM(CDSObjectType type) { return type & CDSObjectType::Item; };
+static constexpr bool IS_CDS_ACTIVE_ITEM(CDSObjectType type) { return type & CDSObjectType::ActiveItem; };
+static constexpr bool IS_CDS_ITEM_EXTERNAL_URL(CDSObjectType type) { return type & CDSObjectType::ExternalUrl; };
+static constexpr bool IS_CDS_ITEM_INTERNAL_URL(CDSObjectType type) { return type & CDSObjectType::InternalUrl; };
+static constexpr bool IS_CDS_PURE_ITEM(CDSObjectType type) { return type == CDSObjectType::Item; };
 
 #define OBJECT_FLAG_RESTRICTED 0x00000001u
 #define OBJECT_FLAG_SEARCHABLE 0x00000002u
@@ -81,6 +91,24 @@ static constexpr bool IS_CDS_PURE_ITEM(unsigned int type) { return type == OBJEC
 #define OBJECT_FLAG_ONLINE_SERVICE 0x00000040u
 #define OBJECT_FLAG_OGG_THEORA 0x00000080u
 #define OBJECT_FLAG_PLAYED 0x00000200u
+
+enum class ObjectFlag : uint16_t {
+    Restricted = 1,
+    Searchable = 2,
+    UseResourceRef = 4,
+    PersistentContainer = 8,
+    PlaylistRef = 16,
+    ProxyURL = 32,
+    OnlineService = 64,
+    OggTheora = 128,
+    Played = 512
+};
+
+enum class AutoScanSource : uint8_t {
+    None = 0,
+    UI = 1,
+    Config = 2
+};
 
 #define OBJECT_AUTOSCAN_NONE 0u
 #define OBJECT_AUTOSCAN_UI 1u
@@ -120,7 +148,7 @@ protected:
     bool virt;
 
     /// \brief type of the object: item, container, etc.
-    unsigned int objectType;
+    CDSObjectType objectType;
 
     /// \brief field which can hold various flags for the object
     unsigned int objectFlags;
@@ -209,7 +237,7 @@ public:
     bool isVirtual() const { return virt; }
 
     /// \brief Query information on object type: item, container, etc.
-    unsigned int getObjectType() const { return objectType; }
+    [[nodiscard]] CDSObjectType getObjectType() const { return objectType; }
 
     /// \brief Retrieve sort priority setting.
     int getSortPriority() const { return sortPriority; }
@@ -354,7 +382,7 @@ public:
     /// \brief Checks if the minimum required parameters for the object have been set and are valid.
     virtual void validate();
 
-    static std::shared_ptr<CdsObject> createObject(const std::shared_ptr<Database>& database, unsigned int objectType);
+    static std::shared_ptr<CdsObject> createObject(const std::shared_ptr<Database>& database, CDSObjectType type);
 
     /// \brief Returns the path to the object as it appears in the database tree.
     virtual std::string getVirtualPath() const = 0;

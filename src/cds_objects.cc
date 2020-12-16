@@ -114,24 +114,23 @@ void CdsObject::validate()
         throw_std_runtime_error("Object validation failed: missing upnp class");
 }
 
-std::shared_ptr<CdsObject> CdsObject::createObject(const std::shared_ptr<Database>& database, unsigned int objectType)
+std::shared_ptr<CdsObject> CdsObject::createObject(const std::shared_ptr<Database>& database, CDSObjectType type)
 {
     std::shared_ptr<CdsObject> obj;
 
-    if (IS_CDS_CONTAINER(objectType)) {
-        obj = std::make_shared<CdsContainer>(database);
-    } else if (IS_CDS_ITEM_INTERNAL_URL(objectType)) {
-        obj = std::make_shared<CdsItemInternalURL>(database);
-    } else if (IS_CDS_ITEM_EXTERNAL_URL(objectType)) {
-        obj = std::make_shared<CdsItemExternalURL>(database);
-    } else if (IS_CDS_ACTIVE_ITEM(objectType)) {
-        obj = std::make_shared<CdsActiveItem>(database);
-    } else if (IS_CDS_ITEM(objectType)) {
-        obj = std::make_shared<CdsItem>(database);
-    } else {
-        throw_std_runtime_error("invalid object type: " + std::to_string(objectType));
+    switch (type) {
+    case CDSObjectType::Container:
+        return std::make_shared<CdsContainer>(database);
+    case CDSObjectType::InternalUrl:
+        return std::make_shared<CdsItemInternalURL>(database);
+    case CDSObjectType::ExternalUrl:
+        return std::make_shared<CdsItemExternalURL>(database);
+    case CDSObjectType::ActiveItem:
+        return std::make_shared<CdsActiveItem>(database);
+    case CDSObjectType::Item:
+        return std::make_shared<CdsItem>(database);
     }
-    return obj;
+    throw_std_runtime_error("invalid object type?");
 }
 
 /* CdsItem */
@@ -140,7 +139,7 @@ CdsItem::CdsItem(std::shared_ptr<Database> database)
     : CdsObject(std::move(database))
     , mimeType(MIMETYPE_DEFAULT)
 {
-    objectType = OBJECT_TYPE_ITEM;
+    objectType = CDSObjectType::Item;
     upnpClass = "object.item";
     trackNumber = 0;
 }
@@ -148,8 +147,10 @@ CdsItem::CdsItem(std::shared_ptr<Database> database)
 void CdsItem::copyTo(const std::shared_ptr<CdsObject>& obj)
 {
     CdsObject::copyTo(obj);
-    if (!IS_CDS_ITEM(obj->getObjectType()))
+    if (obj->getObjectType() != CDSObjectType::Item) {
+        log_warning("Attempted to CdsItem::CopyTo a non-item!");
         return;
+    }
     auto item = std::static_pointer_cast<CdsItem>(obj);
     //    item->setDescription(description);
     item->setMimeType(mimeType);
