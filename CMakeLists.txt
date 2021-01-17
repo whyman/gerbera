@@ -1,8 +1,13 @@
 cmake_minimum_required(VERSION 3.14 FATAL_ERROR)
 cmake_policy(VERSION 3.13)
 
-set(GERBERA_VERSION 1.7.0_git)
-project(Gerbera)
+# Only set for release tags
+set(GERBERA_VERSION "")
+
+project(Gerbera
+        DESCRIPTION "UPnP Media Server"
+        HOMEPAGE_URL "https://gerbera.io"
+        LANGUAGES CXX C)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
@@ -36,6 +41,9 @@ set(WITH_SYSTEMD        1 CACHE BOOL "Install Systemd unit file")
 set(WITH_LASTFM         0 CACHE BOOL "Enable LastFM")
 set(WITH_DEBUG          1 CACHE BOOL "Enables debug logging")
 set(WITH_TESTS          0 CACHE BOOL "Enables Unit Tests")
+
+# For building packages without depending on the old system libupnp
+set(STATIC_LIBUPNP 0 CACHE BOOL "Link to libupnp statically")
 
 add_library(libgerbera STATIC 
         src/action_request.cc
@@ -259,15 +267,22 @@ elseif (${CMAKE_SYSTEM_NAME} MATCHES ".*BSD.*")
     target_compile_definitions(libgerbera PUBLIC BSD)
 endif()
 
-target_compile_definitions(libgerbera PUBLIC GERBERA_VERSION="${GERBERA_VERSION}")
-target_compile_definitions(gerbera PRIVATE PACKAGE_DATADIR="${CMAKE_INSTALL_PREFIX}/share/gerbera")
-
 # Generate Compile Information
 include("GenCompileInfo")
 generate_compile_info()
 target_compile_definitions(gerbera PRIVATE COMPILE_INFO="${COMPILE_INFO}")
 target_compile_definitions(gerbera PRIVATE GIT_BRANCH="${GIT_BRANCH}")
 target_compile_definitions(gerbera PRIVATE GIT_COMMIT_HASH="${GIT_COMMIT_HASH}")
+
+if (GERBERA_VERSION)
+    # Release tag should have this set
+    target_compile_definitions(libgerbera PUBLIC GERBERA_VERSION="${GERBERA_VERSION}")
+else()
+    # Master/git build
+    target_compile_definitions(libgerbera PUBLIC GERBERA_VERSION="${GIT_TAG}")
+endif()
+
+target_compile_definitions(gerbera PRIVATE PACKAGE_DATADIR="${CMAKE_INSTALL_PREFIX}/share/gerbera")
 
 # Check for C++17 STL Optional
 include(CheckIncludeFileCXX)
@@ -559,3 +574,5 @@ INSTALL(FILES
         src/database/create/sqlite3.sql
         DESTINATION share/gerbera)
 INSTALL(FILES ${PROJECT_SOURCE_DIR}/doc/gerbera.1 DESTINATION share/man/man1)
+
+include(packaging)
