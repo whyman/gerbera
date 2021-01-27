@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+      - docker-multiarch
     tags:
       - 'v*'
   pull_request:
@@ -14,7 +15,7 @@ jobs:
   build:
     strategy:
       matrix:
-        docker-arch: [ linux/386, linux/amd64, linux/arm/v6, linux/arm/v7, linux/arm64 ]
+        docker-arch: [ linux/amd64, linux/386, ]#linux/arm64, linux/arm/v7, linux/arm/v6, linux/riscv64 ]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -41,11 +42,41 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Build and push
+        id: build
         uses: docker/build-push-action@v2
         with:
           context: .
           file: ./Dockerfile
           platforms: ${{ matrix.docker-arch }}
           push: ${{ github.repository == 'gerbera/gerbera' && ( startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/master' ) }}"
-          tags: ${{ steps.docker_meta.outputs.tags }}
-          labels: ${{ steps.docker_meta.outputs.labels }}
+#          tags: ${{ steps.docker_meta.outputs.tags }}
+#          labels: ${{ steps.docker_meta.outputs.labels }}
+
+      - uses: frabert/replace-string-action@v1.2
+        id: replace
+        with:
+          pattern: '\/'
+          string: ${{ matrix.docker-arch }}
+          replace-with: '-'
+
+      - name: "Write Digest file"
+        run: |
+          echo "${{ steps.build.outputs.digest }}"
+          echo "${{ steps.build.outputs.digest }}" > ${{ steps.replace.outputs.replaced }}.digest
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: ${{ steps.replace.outputs.replaced }}.digest
+          path: ${{ steps.replace.outputs.replaced }}.digest
+
+  manifest:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "hello"
+
+      - uses: actions/download-artifact@v2
+
+      - name: Display structure of downloaded files
+        run: ls -R
