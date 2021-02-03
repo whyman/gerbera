@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+      - docker-multi-arch-v2
     tags:
       - 'v*'
   pull_request:
@@ -13,21 +14,38 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        docker-arch: [ 386, amd64, arm/v6, arm/v7, arm64 ]
+
     steps:
       - name: Checkout
         uses: actions/checkout@v2
         with:
           fetch-depth: 0 # We need history/tags to generate version info
 
+      - id: tagsuf
+        shell: bash
+        run: |
+          docker_arch="${{ matrix.docker-arch }}"
+          tag_suf="${docker_arch////}"
+          echo $tag_suf
+          echo "::set-output name=replace::$tag_suf"
+
       - name: Docker meta
         id: docker_meta
         uses: crazy-max/ghaction-docker-meta@v1
         with:
-          images: gerbera/gerbera
-          tag-sha: true
+          images: thev00d00/gerbera-test
+          sep-tags: "-${{ steps.tagsuf.outputs.replace }},"
           tag-semver: |
             {{version}}
-            {{major}}.{{minor}}
+          tag-latest: false
+
+      - name: debug
+        run: |
+          echo "${{ steps.docker_meta.outputs.tags }}-${{ steps.tagsuf.outputs.replace }}"
+          echo "${{ format('{{Hello {0} {1} {2}!}}', steps.docker_meta.outputs.tags, steps.tagsuf.outputs.replace, 'Octocat') }}"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1
@@ -36,7 +54,7 @@ jobs:
         uses: docker/setup-buildx-action@v1
 
       - name: Login to DockerHub
-        if: "${{ github.repository == 'gerbera/gerbera' && ( startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/master' ) }}"
+        #if: "${{ startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/master' }}"
         uses: docker/login-action@v1
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
@@ -44,19 +62,45 @@ jobs:
 
       - name: Build and push
         uses: docker/build-push-action@v2
+        id: buildarch
         with:
           context: .
           file: ./Dockerfile
-          platforms: linux/amd64,linux/arm/v7,linux/arm64
-          push: ${{ github.repository == 'gerbera/gerbera' && ( startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/master' ) }}"
-          tags: ${{ steps.docker_meta.outputs.tags }}
-          labels: ${{ steps.docker_meta.outputs.labels }}
+          platforms: linux/${{ matrix.docker-arch }}
+          push: true #${{ startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/master' }}"
+          tags: "${{ steps.docker_meta.outputs.tags }}-${{ steps.tagsuf.outputs.replace }}"
 
+  readme:
+    needs: build
+    runs-on: ubuntu-latest
+    if: "${{ github.ref == 'refs/heads/master' }}"
+    steps:
       - name: Docker Hub Description
-        if: "${{ github.repository == 'gerbera/gerbera' && ( startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/master' ) }}"
         uses: peter-evans/dockerhub-description@v2
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
-          repository: gerbera/gerbera
+          repository: thev00d00/gerbera-test
           readme-filepath: README.Docker.md
+
+  manifest-list:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Docker meta
+        id: list_tags
+        uses: crazy-max/ghaction-docker-meta@v1
+        with:
+          images: ""
+          tag-semver: |
+            {{version}}
+          tag-latest: false
+
+      - name: Build Manifest List
+        run: |
+          wget https://github.com/estesp/manifest-tool/releases/download/v1.0.3/manifest-tool-linux-amd64 -O manifest-tool
+          chmod +x manifest-tool
+          ./manifest-tool push from-args \
+              --platforms linux/386,linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64 \
+              --template thev00d00/gerbera-test:${{ steps.list_tags.outputs.tags }}-ARCHVARIANT \
+              --target thev00d00/gerbera-test:v1
