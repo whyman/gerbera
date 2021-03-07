@@ -120,6 +120,8 @@ std::string Mime::mimeTypeToUpnpClass(const std::string& mimeType)
 std::string Mime::getMimeType(const fs::path& path, const std::string& defval)
 {
 #ifdef HAVE_MAGIC
+    extensionToMimeType(path, defval)
+
     return extensionToMimeType(path, fileToMimeType(path, defval));
 #else
     return extensionToMimeType(path, defval);

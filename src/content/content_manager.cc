@@ -676,12 +676,13 @@ void ContentManager::_rescanDirectory(std::shared_ptr<AutoscanDirectory>& adir, 
         if ((shutdownFlag) || ((task != nullptr) && !task->isValid()))
             break;
 
-        struct stat statbuf;
+        struct stat statbuf{};
         int ret = stat(newPath.c_str(), &statbuf);
         if (ret != 0) {
             log_error("Failed to stat {}, {}", newPath.c_str(), std::strerror(errno));
             continue;
         }
+
 
         // it is possible that someone hits remove while the container is being scanned
         // in this case we will invalidate the autoscan entry
@@ -1193,7 +1194,7 @@ bool ContentManager::isLink(const fs::path& path, bool allowLinks)
         }
 
         if (S_ISLNK(statbuf.st_mode)) {
-            log_debug("link {} skipped", path.c_str());
+
             return true;
         }
     }
@@ -1202,18 +1203,23 @@ bool ContentManager::isLink(const fs::path& path, bool allowLinks)
 
 std::shared_ptr<CdsObject> ContentManager::createObjectFromFile(const fs::path& path, bool followSymlinks, bool magic, bool allow_fifo)
 {
-    struct stat statbuf;
-    int ret = stat(path.c_str(), &statbuf);
-    if (ret != 0) {
-        log_warning("File or directory does not exist: {} ({})", path.c_str(), std::strerror(errno));
+    std::error_code ec;
+    fs::file_status fileStatus = followSymlinks ? fs::symlink_status(path, ec) : fs::status(path, ec);
+
+    if (ec) {
+        log_warning("File or directory does not exist: {} ({})", path.c_str(), std::strerror(ec.value()));
         return nullptr;
     }
 
-    if (isLink(path, followSymlinks))
+    if (fileStatus.type() == fs::file_type::symlink && !followSymlinks) {
+        log_debug("link {} skipped", path.c_str());
         return nullptr;
+    }
 
     std::shared_ptr<CdsObject> obj;
-    if (S_ISREG(statbuf.st_mode) || (allow_fifo && S_ISFIFO(statbuf.st_mode))) { // item
+
+
+    if (fileStatus.type() == fs::file_type::regular || (allow_fifo && fileStatus.type() == fs::file_type::fifo)) { // item
         /* retrieve information about item and decide if it should be included */
         std::string mimetype = mime->getMimeType(path, MIMETYPE_DEFAULT);
         if (mimetype.empty()) {
