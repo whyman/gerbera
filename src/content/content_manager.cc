@@ -40,7 +40,6 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include "config/config_manager.h"
 #include "config/directory_tweak.h"
 #include "database/database.h"
 #include "layout/builtin_layout.h"
@@ -257,6 +256,13 @@ void ContentManager::run()
             timer->addTimerSubscriber(this, adir->getInterval(), param, false);
         }
     }
+
+    if (layout_enabled)
+        initLayout();
+
+#ifdef HAVE_JS
+    initPlaylistParser();
+#endif
 }
 
 ContentManager::~ContentManager() { log_debug("ContentManager destroyed"); }
@@ -292,7 +298,7 @@ void ContentManager::timerNotify(std::shared_ptr<Timer::Parameter> parameter)
         std::shared_ptr<AutoscanDirectory> adir = autoscan_timed->get(parameter->getID());
 
         // do not rescan while other scans are still active
-        if (adir == nullptr || adir->getActiveScanCount() > 0 || adir->getTaskCount() > 0)
+        if (adir == nullptr || adir->getTaskCount() > 0)
             return;
 
         rescanDirectory(adir, adir->getObjectID());
@@ -309,28 +315,16 @@ void ContentManager::shutdown()
     log_debug("start");
     AutoLockU lock(mutex);
     log_debug("updating last_modified data for autoscan in database...");
-    autoscan_timed->updateLMinDB();
+    autoscan_timed->flushLastModifiedToDB();
 
 #ifdef HAVE_JS
-    destroyJS();
+    destroyPlaylistParser();
 #endif
     destroyLayout();
 
 #ifdef HAVE_INOTIFY
     if (autoscan_inotify) {
-        // update modification time for database
-        for (size_t i = 0; i < autoscan_inotify->size(); i++) {
-            log_debug("AutoScanDir {}", i);
-            std::shared_ptr<AutoscanDirectory> dir = autoscan_inotify->get(i);
-            if (dir != nullptr) {
-                if (fs::is_directory(dir->getLocation())) {
-                    auto t = getLastWriteTime(dir->getLocation());
-                    dir->setCurrentLMT(dir->getLocation(), t);
-                }
-                dir->updateLMT();
-            }
-        }
-        autoscan_inotify->updateLMinDB();
+        autoscan_inotify->flushLastModifiedToDB();
 
         autoscan_inotify = nullptr;
         inotify = nullptr;
@@ -481,13 +475,6 @@ int ContentManager::_addFile(const fs::path& path, fs::path rootPath, AutoScanSe
     if (config->getConfigFilename() == path)
         return INVALID_OBJECT_ID;
 
-    if (layout_enabled)
-        initLayout();
-
-#ifdef HAVE_JS
-    initJS();
-#endif
-
     // checkDatabase, don't process existing
     // TODO: stat file to compare with LMT
     auto obj = createSingleItem(path, rootPath, asSetting.followSymlinks, true, false, task);
@@ -516,7 +503,7 @@ bool ContentManager::updateAttachedResources(const std::shared_ptr<AutoscanDirec
         // in order to rescan whole directory we have to set lmt to a very small value
         AutoScanSetting asSetting;
         asSetting.adir = adir;
-        adir->setCurrentLMT(parentPath, time_t(1));
+        adir->setPathLastModified(parentPath, time_t(1));
         asSetting.followSymlinks = config->getBoolOption(CFG_IMPORT_FOLLOW_SYMLINKS);
         asSetting.hidden = config->getBoolOption(CFG_IMPORT_HIDDEN_FILES);
         asSetting.recursive = true;
@@ -582,7 +569,7 @@ void ContentManager::_rescanDirectory(std::shared_ptr<AutoscanDirectory>& adir, 
     if (adir == nullptr)
         throw_std_runtime_error("ID valid but nullptr returned? this should never happen");
 
-    fs::path rootpath = adir->getLocation();
+    fs::path rootPath = adir->getLocation();
 
     fs::path location;
     std::shared_ptr<CdsObject> obj;
@@ -598,7 +585,7 @@ void ContentManager::_rescanDirectory(std::shared_ptr<AutoscanDirectory>& adir, 
             else
                 location = obj->getLocation();
         } catch (const std::runtime_error& e) {
-            if (adir->persistent()) {
+            if (adir->isPersistent()) {
                 containerID = INVALID_OBJECT_ID;
             } else {
                 removeAutoscanDirectory(adir);
@@ -611,7 +598,7 @@ void ContentManager::_rescanDirectory(std::shared_ptr<AutoscanDirectory>& adir, 
         if (!fs::is_directory(adir->getLocation())) {
             adir->setObjectID(INVALID_OBJECT_ID);
             database->updateAutoscanDirectory(adir);
-            if (adir->persistent()) {
+            if (adir->isPersistent()) {
                 return;
             }
 
@@ -630,14 +617,13 @@ void ContentManager::_rescanDirectory(std::shared_ptr<AutoscanDirectory>& adir, 
     if (location.empty()) {
         log_error("Container with ID {} has no location information", containerID);
         return;
-        //        continue;
-        // throw_std_runtime_error("Container has no location information");
     }
 
-    DIR* dir = opendir(location.c_str());
-    if (!dir) {
-        log_warning("Could not open {}: {}", location.c_str(), std::strerror(errno));
-        if (adir->persistent()) {
+    try {
+        fs::status(location);
+    } catch (fs::filesystem_error& e) {
+        log_warning("Could not open {}: {}", location.c_str(), e.what());
+        if (adir->isPersistent()) {
             removeObject(adir, containerID, false);
             adir->setObjectID(INVALID_OBJECT_ID);
             database->updateAutoscanDirectory(adir);
@@ -666,128 +652,121 @@ void ContentManager::_rescanDirectory(std::shared_ptr<AutoscanDirectory>& adir, 
         thisTaskID = 0;
     }
 
-    time_t last_modified_current_max = adir->getPreviousLMT(location);
-    time_t last_modified_new_max = last_modified_current_max;
-    adir->setCurrentLMT(location, 0);
+    fs::file_time_type scanLastMod = adir->getScanLastModified();
 
-    struct dirent* dent;
-    while ((dent = readdir(dir)) != nullptr) {
-        char* name = dent->d_name;
-        if (name[0] == '.') {
-            if (name[1] == 0) {
+    fs::file_time_type last_modified_current_max = adir->getPathLastModified(location);
+
+    try {
+        for (auto& entry : fs::directory_iterator(location, std::filesystem::directory_options::follow_directory_symlink | std::filesystem::directory_options::skip_permission_denied)) {
+            if ((shutdownFlag) || ((task != nullptr) && !task->isValid()))
+                break;
+
+            const auto& path = entry.path();
+
+            // it is possible that someone hits remove while the container is being scanned
+            // in this case we will invalidate the autoscan entry
+            if (adir->getScanID() == INVALID_SCAN_ID) {
+                log_info("Lost autoscan for {}", path.string());
+                finishScan(adir, location, last_modified_new_max);
+                return;
+            }
+
+            if (entry.is_symlink() && !asSetting.followSymlinks) {
+                int objectID = database->findObjectIDByPath(entry.path());
+                if (objectID > 0) {
+                    if (list != nullptr)
+                        list->erase(objectID);
+                    removeObject(adir, objectID, false);
+                }
+                log_debug("Link {} skipped", path.string());
                 continue;
             }
-            if (name[1] == '.' && name[2] == 0) {
-                continue;
+
+            asSetting.recursive = adir->getRecursive();
+            asSetting.followSymlinks = config->getBoolOption(CFG_IMPORT_FOLLOW_SYMLINKS);
+            asSetting.hidden = adir->getHidden();
+            asSetting.mergeOptions(config, location);
+
+            auto pathLastMod = adir->getPathLastModified(path);
+            if (pathLastMod.time_since_epoch() == std::chrono::seconds(0)) {
+
             }
-            if (!asSetting.hidden) {
-                continue;
-            }
-        }
-        fs::path newPath = location / name;
 
-        if ((shutdownFlag) || ((task != nullptr) && !task->isValid()))
-            break;
+            if (pathLastMod < entry.last_write_time()) {
 
-        struct stat statbuf;
-        int ret = stat(newPath.c_str(), &statbuf);
-        if (ret != 0) {
-            log_error("Failed to stat {}, {}", newPath.c_str(), std::strerror(errno));
-            continue;
-        }
+                if (entry.is_regular_file()) {
+                    int objectID = database->findObjectIDByPath(path);
+                    if (objectID > 0) {
+                        if (list != nullptr)
+                            list->erase(objectID);
 
-        // it is possible that someone hits remove while the container is being scanned
-        // in this case we will invalidate the autoscan entry
-        if (adir->getScanID() == INVALID_SCAN_ID) {
-            log_info("lost autoscan for {}", newPath.c_str());
-            finishScan(dir, adir, location, last_modified_new_max);
-            return;
-        }
-
-        if (isLink(newPath, asSetting.followSymlinks)) {
-            int objectID = database->findObjectIDByPath(newPath);
-            if (objectID > 0) {
-                if (list != nullptr)
-                    list->erase(objectID);
-                removeObject(adir, objectID, false);
-            }
-            log_debug("link {} skipped", newPath.c_str());
-            continue;
-        }
-
-        asSetting.recursive = adir->getRecursive();
-        asSetting.followSymlinks = config->getBoolOption(CFG_IMPORT_FOLLOW_SYMLINKS);
-        asSetting.hidden = adir->getHidden();
-        asSetting.mergeOptions(config, location);
-
-        if (S_ISREG(statbuf.st_mode)) {
-            int objectID = database->findObjectIDByPath(newPath);
-            if (objectID > 0) {
-                if (list != nullptr)
-                    list->erase(objectID);
-
-                // check modification time and update file if chagned
-                if (last_modified_current_max < statbuf.st_mtime) {
-                    // re-add object - we have to do this in order to trigger
-                    // layout
-                    removeObject(adir, objectID, false, false);
-                    asSetting.recursive = false;
-                    asSetting.rescanResource = false;
-                    addFileInternal(newPath, rootpath, asSetting, false);
-                    // update time variable
+                        // check modification time and update file if changed
+                        if (last_modified_current_max < entry.last_write_time()) {
+                            // re-add object - we have to do this in order to trigger
+                            // layout
+                            removeObject(adir, objectID, false, false);
+                            asSetting.recursive = false;
+                            asSetting.rescanResource = false;
+                            addFileInternal(path, rootPath, asSetting, false);
+                            // update time variable
+                            if (last_modified_new_max < statbuf.st_mtime)
+                                last_modified_new_max = statbuf.st_mtime;
+                        }
+                    } else {
+                        // add file, not recursive, not async, not forced
+                        asSetting.recursive = false;
+                        asSetting.rescanResource = false;
+                        addFileInternal(path, rootPath, asSetting, false);
+                        if (last_modified_new_max < statbuf.st_mtime)
+                            last_modified_new_max = statbuf.st_mtime;
+                    }
+                } else if (entry.is_directory() && asSetting.recursive) {
+                    int objectID = database->findObjectIDByPath(newPath);
                     if (last_modified_new_max < statbuf.st_mtime)
                         last_modified_new_max = statbuf.st_mtime;
-                }
-            } else {
-                // add file, not recursive, not async, not forced
-                asSetting.recursive = false;
-                asSetting.rescanResource = false;
-                addFileInternal(newPath, rootpath, asSetting, false);
-                if (last_modified_new_max < statbuf.st_mtime)
-                    last_modified_new_max = statbuf.st_mtime;
-            }
-        } else if (S_ISDIR(statbuf.st_mode) && asSetting.recursive) {
-            int objectID = database->findObjectIDByPath(newPath);
-            if (last_modified_new_max < statbuf.st_mtime)
-                last_modified_new_max = statbuf.st_mtime;
-            if (objectID > 0) {
-                log_debug("rescanSubDirectory {}", newPath.c_str());
-                if (list != nullptr)
-                    list->erase(objectID);
-                // add a task to rescan the directory that was found
-                rescanDirectory(adir, objectID, newPath, task->isCancellable());
-            } else {
-                log_debug("addSubDirectory {}", newPath.c_str());
+                    if (objectID > 0) {
+                        log_debug("rescanSubDirectory {}", path.c_str());
+                        if (list != nullptr)
+                            list->erase(objectID);
+                        // add a task to rescan the directory that was found
+                        rescanDirectory(adir, objectID, path, task->isCancellable());
+                    } else {
+                        log_debug("addSubDirectory {}", path.string());
 
-                // we have to make sure that we will never add a path to the task list
-                // if it is going to be removed by a pending remove task.
-                // this lock will make sure that remove is not in the process of invalidating
-                // the AutocsanDirectories in the autoscan_timed list at the time when we
-                // are checking for validity.
-                AutoLock lock(mutex);
+                        // we have to make sure that we will never add a path to the task list
+                        // if it is going to be removed by a pending remove task.
+                        // this lock will make sure that remove is not in the process of invalidating
+                        // the AutocsanDirectories in the autoscan_timed list at the time when we
+                        // are checking for validity.
+                        AutoLock lock(mutex);
 
-                // it is possible that someone hits remove while the container is being scanned
-                // in this case we will invalidate the autoscan entry
-                if (adir->getScanID() == INVALID_SCAN_ID) {
-                    log_info("lost autoscan for {}", newPath.c_str());
-                    finishScan(dir, adir, location, last_modified_new_max);
-                    return;
+                        // it is possible that someone hits remove while the container is being scanned
+                        // in this case we will invalidate the autoscan entry
+                        if (adir->getScanID() == INVALID_SCAN_ID) {
+                            log_info("lost autoscan for {}", path.string());
+                            finishScan(dir, adir, location, last_modified_new_max);
+                            return;
+                        }
+                        // add directory, recursive, async, hidden flag, low priority
+                        asSetting.recursive = true;
+                        asSetting.rescanResource = false;
+                        asSetting.mergeOptions(config, path);
+                        // const fs::path& path, const fs::path& rootPath, AutoScanSetting& asSetting, bool async, bool lowPriority, unsigned int parentTaskID, bool cancellable
+                        addFileInternal(path, rootPath, asSetting, true, true, thisTaskID, task->isCancellable());
+                    }
                 }
-                // add directory, recursive, async, hidden flag, low priority
-                asSetting.recursive = true;
-                asSetting.rescanResource = false;
-                asSetting.mergeOptions(config, newPath);
-                // const fs::path& path, const fs::path& rootpath, AutoScanSetting& asSetting, bool async, bool lowPriority, unsigned int parentTaskID, bool cancellable
-                addFileInternal(newPath, rootpath, asSetting, true, true, thisTaskID, task->isCancellable());
             }
         }
-    } // while
+    } catch (fs::filesystem_error& error) {
+        log_warning("Skipping rescan: Filesystem error: {}: {}", error.path1().string(), error.what());
+    }
 
     finishScan(dir, adir, location, last_modified_new_max);
 
     if ((shutdownFlag) || ((task != nullptr) && !task->isValid())) {
         return;
     }
+
     if (list != nullptr && !list->empty()) {
         auto changedContainers = database->removeObjects(list);
         if (changedContainers != nullptr) {
@@ -834,9 +813,9 @@ void ContentManager::addRecursive(std::shared_ptr<AutoscanDirectory>& adir, cons
     time_t last_modified_current_max = 0;
     time_t last_modified_new_max = last_modified_current_max;
     if (adir != nullptr) {
-        last_modified_current_max = adir->getPreviousLMT(path);
+        last_modified_current_max = adir->getPathLastModified(path);
         last_modified_new_max = last_modified_current_max;
-        adir->setCurrentLMT(path, 0);
+        adir->setPathLastModified(path, 0);
     }
 
     struct dirent* dent;
@@ -895,11 +874,11 @@ void ContentManager::addRecursive(std::shared_ptr<AutoscanDirectory>& adir, cons
     finishScan(dir, adir, path, last_modified_new_max);
 }
 
-void ContentManager::finishScan(DIR* dir, const std::shared_ptr<AutoscanDirectory>& adir, const std::string& location, time_t lmt)
+void ContentManager::finishScan(const std::shared_ptr<AutoscanDirectory>& adir, const std::string& location, fs::file_time_type lmt)
 {
-    closedir(dir);
     if (adir != nullptr) {
-        adir->setCurrentLMT(location, lmt > 0 ? lmt : (time_t)1);
+
+        adir->setPathLastModified(location, lmt.time_since_epoch() > std::chrono::seconds::zero() ? lmt : (time_t)1);
     }
 }
 
@@ -1311,15 +1290,15 @@ void ContentManager::initLayout()
 }
 
 #ifdef HAVE_JS
-void ContentManager::initJS()
+void ContentManager::initPlaylistParser()
 {
-    if (playlist_parser_script == nullptr) {
+    if (playlist_parser_script == nullptr && !config->getOption(CFG_IMPORT_SCRIPTING_PLAYLIST_SCRIPT).empty()) {
         auto self = shared_from_this();
         playlist_parser_script = std::make_unique<PlaylistParserScript>(self, scripting_runtime);
     }
 }
 
-void ContentManager::destroyJS() { playlist_parser_script = nullptr; }
+void ContentManager::destroyPlaylistParser() { playlist_parser_script = nullptr; }
 
 #endif // HAVE_JS
 
@@ -1332,11 +1311,11 @@ void ContentManager::reloadLayout()
 {
     destroyLayout();
 #ifdef HAVE_JS
-    destroyJS();
+    destroyPlaylistParser();
 #endif // HAVE_JS
     initLayout();
 #ifdef HAVE_JS
-    initJS();
+    initPlaylistParser();
 #endif // HAVE_JS
 }
 
@@ -1398,7 +1377,7 @@ void ContentManager::addTask(const std::shared_ptr<GenericTask>& task, bool lowP
     AutoLock lock(mutex);
 
     uint32_t id = taskID++;
-    log_debug("Adding Task {}", id);
+    log_debug("Adding Task {} [{}]: {}", id, lowPriority ? "Low" : "Normal", task->getDescription());
     task->setID(id);
 
     if (!lowPriority)
@@ -1686,7 +1665,7 @@ void ContentManager::removeAutoscanDirectory(const std::shared_ptr<AutoscanDirec
 
 void ContentManager::handlePeristentAutoscanRemove(const std::shared_ptr<AutoscanDirectory>& adir)
 {
-    if (adir->persistent()) {
+    if (adir->isPersistent()) {
         adir->setObjectID(INVALID_OBJECT_ID);
         database->updateAutoscanDirectory(adir);
     } else {
@@ -1854,7 +1833,7 @@ void CMAddFileTask::run()
     content->_addFile(path, rootpath, asSetting, self);
     if (asSetting.adir != nullptr) {
         asSetting.adir->decTaskCount();
-        if (asSetting.adir->updateLMT()) {
+        if (asSetting.adir->lastModHasChanged()) {
             log_debug("CMAddFileTask::run: Updating last_modified for autoscan directory {}", asSetting.adir->getLocation().c_str());
             content->getContext()->getDatabase()->updateAutoscanDirectory(asSetting.adir);
         }
@@ -1897,8 +1876,8 @@ void CMRescanDirectoryTask::run()
     auto self = shared_from_this();
     content->_rescanDirectory(adir, containerID, self);
     adir->decTaskCount();
-    if (adir->updateLMT()) {
-        log_debug("CMRescanDirectoryTask::run: Updating last_modified for autoscan directory {}", adir->getLocation().c_str());
+    if (adir->lastModHasChanged()) {
+        log_debug("CMRescanDirectoryTask::run: Updating last_modified for autoscan directory {}", adir->getLocation().string());
         content->getContext()->getDatabase()->updateAutoscanDirectory(adir);
     }
     promise.set_value();

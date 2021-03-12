@@ -272,10 +272,10 @@ public:
     /// or add a new autoscan directory
     void setAutoscanDirectory(const std::shared_ptr<AutoscanDirectory>& dir);
 
-    /// \brief handles the removal of a persistent autoscan directory
+    /// \brief handles the removal of a isPersistent autoscan directory
     void handlePeristentAutoscanRemove(const std::shared_ptr<AutoscanDirectory>& adir);
 
-    /// \brief handles the recreation of a persistent autoscan directory
+    /// \brief handles the recreation of a isPersistent autoscan directory
     void handlePersistentAutoscanRecreate(const std::shared_ptr<AutoscanDirectory>& adir);
 
     std::future<void> rescanDirectory(const std::shared_ptr<AutoscanDirectory>& adir, int objectId, std::string descPath = "", bool cancellable = true);
@@ -305,8 +305,8 @@ public:
     void destroyLayout();
 
 #ifdef HAVE_JS
-    void initJS();
-    void destroyJS();
+    void initPlaylistParser();
+    void destroyPlaylistParser();
 #endif
 
     std::shared_ptr<Context> getContext() const
@@ -360,7 +360,7 @@ protected:
     static bool isLink(const fs::path& path, bool allowLinks);
     std::shared_ptr<CdsObject> createSingleItem(const fs::path& path, fs::path& rootPath, bool followSymlinks, bool checkDatabase, bool processExisting, const std::shared_ptr<CMAddFileTask>& task);
     bool updateAttachedResources(const std::shared_ptr<AutoscanDirectory>& adir, const char* location, const std::string& parentPath, bool all);
-    void finishScan(DIR* dir, const std::shared_ptr<AutoscanDirectory>& adir, const std::string& location, time_t lmt);
+    void finishScan(const std::shared_ptr<AutoscanDirectory>& adir, const std::string& location, fs::file_time_type lmt);
     static void invalidateAddTask(const std::shared_ptr<GenericTask>& t, const fs::path& path);
 
     void assignFanArt(const std::vector<std::shared_ptr<CdsContainer>>& containerList, const std::shared_ptr<CdsObject>& origObj);

@@ -101,16 +101,12 @@ PlaylistParserScript::PlaylistParserScript(std::shared_ptr<ContentManager> conte
     currentObjectID = INVALID_OBJECT_ID;
     currentLine = nullptr;
 
-    try {
-        ScriptingRuntime::AutoLock lock(runtime->getMutex());
-        defineFunction("readln", js_readln, 0);
-        defineFunction("getCdsObject", js_getCdsObject, 1);
+    ScriptingRuntime::AutoLock lock(runtime->getMutex());
+    defineFunction("readln", js_readln, 0);
+    defineFunction("getCdsObject", js_getCdsObject, 1);
 
-        std::string scriptPath = config->getOption(CFG_IMPORT_SCRIPTING_PLAYLIST_SCRIPT);
-        load(scriptPath);
-    } catch (const std::runtime_error& ex) {
-        throw ex;
-    }
+    std::string scriptPath = config->getOption(CFG_IMPORT_SCRIPTING_PLAYLIST_SCRIPT);
+    load(scriptPath);
 }
 
 std::string PlaylistParserScript::readln()

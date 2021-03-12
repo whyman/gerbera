@@ -196,10 +196,13 @@ std::unique_ptr<StringConverter> StringConverter::m2i(config_option_t option, co
     if (charset.empty()) {
         charset = cm->getOption(CFG_IMPORT_METADATA_CHARSET);
     }
-    auto tweak = cm->getDirectoryTweakOption(CFG_IMPORT_DIRECTORIES_LIST)->get(!location.empty() ? location : "/");
-    if (tweak != nullptr && tweak->hasMetaCharset()) {
-        charset = tweak->getMetaCharset();
-        log_debug("Using charset {} for {}", charset, location.string());
+    auto tweakOpt = cm->getDirectoryTweakOption(CFG_IMPORT_DIRECTORIES_LIST);
+    if (tweakOpt) {
+        auto tweak = tweakOpt->get(!location.empty() ? location : "/");
+        if (tweak != nullptr && tweak->hasMetaCharset()) {
+            charset = tweak->getMetaCharset();
+            log_debug("Using charset {} for {}", charset, location.string());
+        }
     }
 
     auto conv = std::make_unique<StringConverter>(

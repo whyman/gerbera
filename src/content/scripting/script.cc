@@ -272,13 +272,12 @@ Script::Script(std::shared_ptr<ContentManager> content,
 
             duk_push_object(ctx);
             setProperty(ConfigSetup::removeAttribute(ATTR_AUTOSCAN_DIRECTORY_LOCATION), adir->getLocation());
-            setProperty(ConfigSetup::removeAttribute(ATTR_AUTOSCAN_DIRECTORY_MODE), AutoscanDirectory::mapScanmode(adir->getScanMode()));
+            setProperty(ConfigSetup::removeAttribute(ATTR_AUTOSCAN_DIRECTORY_MODE), AutoscanDirectory::mapScanMode(adir->getScanMode()));
             setIntProperty(ConfigSetup::removeAttribute(ATTR_AUTOSCAN_DIRECTORY_INTERVAL), adir->getInterval());
             setIntProperty(ConfigSetup::removeAttribute(ATTR_AUTOSCAN_DIRECTORY_RECURSIVE), adir->getRecursive());
             setIntProperty(ConfigSetup::removeAttribute(ATTR_AUTOSCAN_DIRECTORY_HIDDENFILES), adir->getHidden());
-            setIntProperty(ConfigSetup::removeAttribute(ATTR_AUTOSCAN_DIRECTORY_SCANCOUNT), adir->getActiveScanCount());
             setIntProperty(ConfigSetup::removeAttribute(ATTR_AUTOSCAN_DIRECTORY_TASKCOUNT), adir->getTaskCount());
-            setProperty(ConfigSetup::removeAttribute(ATTR_AUTOSCAN_DIRECTORY_LMT), fmt::format("{:%Y-%m-%d %H:%M:%S}", fmt::localtime(adir->getPreviousLMT(""))));
+            setProperty(ConfigSetup::removeAttribute(ATTR_AUTOSCAN_DIRECTORY_LMT), fmt::format("{:%Y-%m-%d %H:%M:%S}", fmt::localtime(adir->getPathLastModified(""))));
 
             duk_put_prop_string(ctx, -2, fmt::format("{}", adir->getScanID()).c_str());
         }
@@ -348,22 +347,26 @@ void Script::defineFunctions(const duk_function_list_entry* functions)
 
 void Script::_load(const std::string& scriptPath)
 {
-    std::string scriptText = readTextFile(scriptPath);
-
-    if (scriptText.empty())
-        throw_std_runtime_error("empty script");
-
-    auto j2i = StringConverter::j2i(config);
     try {
-        scriptText = j2i->convert(scriptText, true);
-    } catch (const std::runtime_error& e) {
-        throw_std_runtime_error("Failed to convert import script: {}", e.what());
-    }
+        std::string scriptText = readTextFile(scriptPath);
 
-    duk_push_string(ctx, scriptPath.c_str());
-    if (duk_pcompile_lstring_filename(ctx, 0, scriptText.c_str(), scriptText.length()) != 0) {
-        log_error("Failed to load script: {}", duk_safe_to_string(ctx, -1));
-        throw_std_runtime_error("Scripting: failed to compile {}", scriptPath.c_str());
+        if (scriptText.empty())
+            throw_std_runtime_error(fmt::format("Script: {} is empty!", scriptPath));
+
+        auto j2i = StringConverter::j2i(config);
+        try {
+            scriptText = j2i->convert(scriptText, true);
+        } catch (const std::runtime_error& e) {
+            throw_std_runtime_error("Failed to convert import script: {}", e.what());
+        }
+
+        duk_push_string(ctx, scriptPath.c_str());
+        if (duk_pcompile_lstring_filename(ctx, 0, scriptText.c_str(), scriptText.length()) != 0) {
+            log_error("Failed to load script: {}", duk_safe_to_string(ctx, -1));
+            throw_std_runtime_error("Scripting: failed to compile {}", scriptPath.c_str());
+        }
+    } catch (std::runtime_error& e) {
+        throw_std_runtime_error("Failed to load {} script. path: {}", name, scriptPath);
     }
 }
 

@@ -207,7 +207,7 @@ void AutoscanInotify::threadProc()
                                 inotify->removeWatch(wd);
                             auto watch = getStartPoint(wdObj);
                             if (watch != nullptr) {
-                                if (adir->persistent()) {
+                                if (adir->isPersistent()) {
                                     monitorNonexisting(path, watch->getAutoscanDirectory());
                                     content->handlePeristentAutoscanRemove(adir);
                                 }
@@ -257,8 +257,8 @@ void AutoscanInotify::monitor(const std::shared_ptr<AutoscanDirectory>& dir)
 
 void AutoscanInotify::unmonitor(const std::shared_ptr<AutoscanDirectory>& dir)
 {
-    // must not be persistent
-    assert(!dir->persistent());
+    // must not be isPersistent
+    assert(!dir->isPersistent());
 
     log_debug("Requested to stop monitoring \"{}\"", dir->getLocation().c_str());
     AutoLock lock(mutex);
@@ -384,7 +384,7 @@ void AutoscanInotify::checkMoveWatches(int wd, const std::shared_ptr<Wd>& wdObj)
                 auto watch = getStartPoint(wdToRemove);
                 if (watch != nullptr) {
                     std::shared_ptr<AutoscanDirectory> adir = watch->getAutoscanDirectory();
-                    if (adir->persistent()) {
+                    if (adir->isPersistent()) {
                         monitorNonexisting(path, adir);
                         content->handlePeristentAutoscanRemove(adir);
                     }
@@ -476,7 +476,7 @@ int AutoscanInotify::monitorDirectory(const fs::path& path, const std::shared_pt
 {
     int wd = inotify->addWatch(path, events);
     if (wd < 0) {
-        if (startPoint && adir->persistent()) {
+        if (startPoint && adir->isPersistent()) {
             monitorNonexisting(path, adir);
         }
     } else {

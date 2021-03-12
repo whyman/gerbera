@@ -68,8 +68,16 @@ TEST_F(ContentManagerTest, directoryScan)
 {
     auto autoScan = std::make_shared<AutoscanDirectory>();
     autoScan->setLocation(tmp);
+    autoScan->setScanID(888);
+    autoScan->setScanMode(ScanMode::Timed);
 
+    auto start_time = std::chrono::high_resolution_clock::now();
     auto future = subject->rescanDirectory(autoScan, INVALID_OBJECT_ID);
-    log_info("waiting for 1 minute....");
-    future.wait_for(std::chrono::minutes(1));
+    log_info("waiting for up to 10 minutes....");
+
+    auto status = future.wait_for(std::chrono::minutes(10));
+    auto end_time = std::chrono::high_resolution_clock::now();
+
+    log_info(status == std::future_status::ready ? "Completed!" : "Timed out");
+    log_info("Took {}ms to scan", std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count());
 }

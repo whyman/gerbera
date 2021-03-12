@@ -82,7 +82,7 @@ void web::items::process()
     auto adir = database->getAutoscanDirectory(parentID);
     int autoscanType = 0;
     if (adir != nullptr) {
-        autoscanType = adir->persistent() ? 2 : 1;
+        autoscanType = adir->isPersistent() ? 2 : 1;
         autoscanMode = "timed";
     }
 
@@ -108,7 +108,7 @@ void web::items::process()
             std::shared_ptr<AutoscanDirectory> adir = database->getAutoscanDirectory(startpoint_id);
             if (adir != nullptr && adir->getScanMode() == ScanMode::INotify) {
                 protectItems = true;
-                if (autoscanType == 0 || adir->persistent())
+                if (autoscanType == 0 || adir->isPersistent())
                     protectContainer = true;
 
                 autoscanMode = "inotify";

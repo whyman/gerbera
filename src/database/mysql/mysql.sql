@@ -53,7 +53,7 @@ CREATE TABLE `mt_autoscan` (
   `hidden` tinyint(4) unsigned NOT NULL,
   `interval` int(11) unsigned default NULL,
   `last_modified` bigint(20) unsigned default NULL,
-  `persistent` tinyint(4) unsigned NOT NULL default '0',
+  `isPersistent` tinyint(4) unsigned NOT NULL default '0',
   `location` blob,
   `path_ids` blob,
   `touched` tinyint(4) unsigned NOT NULL default '1',

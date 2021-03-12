@@ -39,10 +39,6 @@ namespace fs = std::filesystem;
 
 #include "util/timer.h"
 
-// forward declaration
-class Database;
-class AutoscanDirectory;
-
 #define INVALID_SCAN_ID (-1)
 
 ///\brief Scan mode - type of scan (timed, inotify, fam, etc.)
@@ -71,7 +67,7 @@ public:
 
     /// \brief The location can only be set once!
     void setLocation(fs::path location);
-    fs::path getLocation() const { return location; }
+    [[nodiscard]] fs::path getLocation() const { return location; }
 
     void setScanMode(ScanMode mode) { this->mode = mode; }
     ScanMode getScanMode() const { return mode; }
@@ -83,10 +79,10 @@ public:
     bool getOrig() const { return isOrig; }
 
     void setHidden(bool hidden) { this->hidden = hidden; }
-    bool getHidden() const { return hidden; }
+    [[nodiscard]] bool getHidden() const { return hidden; }
 
     void setInterval(unsigned int interval) { this->interval = interval; }
-    unsigned int getInterval() const { return interval; }
+    [[nodiscard]] unsigned int getInterval() const { return interval; }
 
     /// \brief Increments the task count.
     ///
@@ -98,7 +94,7 @@ public:
     /// we will resubscribe.
     void incTaskCount() { taskCount++; }
     void decTaskCount() { taskCount--; }
-    int getTaskCount() const { return taskCount; }
+    [[nodiscard]] int getTaskCount() const { return taskCount; }
     void setTaskCount(int taskCount) { this->taskCount = taskCount; }
 
     /// \brief Sets the task ID.
@@ -107,13 +103,13 @@ public:
     /// belongs. Recursive scans spawn new tasks - they all should have
     /// the same id.
     void setScanID(int id);
-    int getScanID() const { return scanID; }
+    [[nodiscard]] int getScanID() const { return scanID; }
 
     void setObjectID(int id) { objectID = id; }
-    int getObjectID() const { return objectID; }
+    [[nodiscard]] int getObjectID() const { return objectID; }
 
     void setPersistent(bool persistent_flag) { this->persistent_flag = persistent_flag; }
-    bool persistent() const { return persistent_flag; }
+    [[nodiscard]] bool isPersistent() const { return persistent_flag; }
 
     /// \brief Sets the last modification time of the current ongoing scan.
     ///
@@ -123,16 +119,15 @@ public:
     /// the last modification time of the starting point but we may not
     /// overwrite it until we are done.
     /// The time will be only set if it is higher than the previous value!
-    void setCurrentLMT(const std::string& location, time_t lmt);
-    time_t getPreviousLMT(const std::string& loc) const;
-    bool updateLMT();
+    void setPathLastModified(const std::string& loc, const std::filesystem::file_time_type& lmt);
+    [[nodiscard]] std::filesystem::file_time_type getScanLastModified() const;
+    [[nodiscard]] fs::file_time_type getPathLastModified(const std::string& loc) const;
+    bool lastModHasChanged() const;
     void resetLMT()
     {
-        lastModified.clear();
-        last_mod_previous_scan = 0;
-        last_mod_current_scan = 0;
+        pathLastModified.clear();
+        lastModfied = fs::file_time_type{std::chrono::seconds::zero()};
     }
-    int getActiveScanCount() const { return activeScanCount; }
 
     /// \brief copies all properties to another object
     void copyTo(const std::shared_ptr<AutoscanDirectory>& copy) const;
@@ -141,8 +136,9 @@ public:
     std::shared_ptr<Timer::Parameter> getTimerParameter();
 
     /* helpers for autoscan stuff */
-    static std::string mapScanmode(ScanMode scanmode);
+    static std::string mapScanMode(ScanMode scanMode);
     static ScanMode remapScanmode(const std::string& scanmode);
+
 
 protected:
     fs::path location;
@@ -156,11 +152,12 @@ protected:
     int scanID { INVALID_SCAN_ID };
     int objectID { INVALID_OBJECT_ID };
     int databaseID { INVALID_OBJECT_ID };
-    time_t last_mod_previous_scan { 0 };
-    time_t last_mod_current_scan { 0 };
+
     std::shared_ptr<Timer::Parameter> timer_parameter;
-    std::map<std::string, time_t> lastModified;
-    unsigned int activeScanCount { 0 };
+
+    fs::file_time_type lastModfied { std::chrono::seconds{0} };
+    std::map<std::string, fs::file_time_type> pathLastModified;
+    bool lastModifiedUpdated = false;
 };
 
 #endif

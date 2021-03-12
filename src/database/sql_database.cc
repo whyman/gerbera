@@ -97,7 +97,7 @@ enum {
 
 #define SELECT_DATA_FOR_STRINGBUFFER                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    \
     TQ('f') << '.' << QTB << "id" SEL_EQ_SP_FQ_DT_BQ "ref_id" SEL_EQ_SP_FQ_DT_BQ "parent_id" SEL_EQ_SP_FQ_DT_BQ "object_type" SEL_EQ_SP_FQ_DT_BQ "upnp_class" SEL_EQ_SP_FQ_DT_BQ "dc_title" SEL_EQ_SP_FQ_DT_BQ "location" SEL_EQ_SP_FQ_DT_BQ "location_hash" SEL_EQ_SP_FQ_DT_BQ "metadata" SEL_EQ_SP_FQ_DT_BQ "auxdata" SEL_EQ_SP_FQ_DT_BQ "resources" SEL_EQ_SP_FQ_DT_BQ "update_id" SEL_EQ_SP_FQ_DT_BQ "mime_type" SEL_EQ_SP_FQ_DT_BQ "flags" SEL_EQ_SP_FQ_DT_BQ "part_number" SEL_EQ_SP_FQ_DT_BQ "track_number" SEL_EQ_SP_FQ_DT_BQ "service_id" SEL_EQ_SP_RFQ_DT_BQ "upnp_class" SEL_EQ_SP_RFQ_DT_BQ "location" SEL_EQ_SP_RFQ_DT_BQ "metadata" SEL_EQ_SP_RFQ_DT_BQ "auxdata" SEL_EQ_SP_RFQ_DT_BQ "resources" SEL_EQ_SP_RFQ_DT_BQ "mime_type" SEL_EQ_SP_RFQ_DT_BQ "service_id" << QTE \
-            << ',' << TQD("as", "persistent")
+            << ',' << TQD("as", "isPersistent")
 
 #define SQL_QUERY_FOR_STRINGBUFFER "SELECT " << SELECT_DATA_FOR_STRINGBUFFER << " FROM " << TQ(CDS_OBJECT_TABLE) << ' ' << TQ('f') << " LEFT JOIN " \
                                              << TQ(CDS_OBJECT_TABLE) << ' ' << TQ("rf") << " ON " << TQD('f', "ref_id")                             \
@@ -1239,7 +1239,7 @@ void SQLDatabase::_removeObjects(const std::vector<int32_t>& objectIDs)
 {
     auto objectIdsStr = join(objectIDs, ',');
     std::ostringstream sel;
-    sel << "SELECT " << TQD('a', "id") << ',' << TQD('a', "persistent")
+    sel << "SELECT " << TQD('a', "id") << ',' << TQD('a', "isPersistent")
         << ',' << TQD('o', "location")
         << " FROM " << TQ(AUTOSCAN_TABLE) << " a"
                                              " JOIN "
@@ -1269,7 +1269,7 @@ void SQLDatabase::_removeObjects(const std::vector<int32_t>& objectIDs)
             } else {
                 delete_as.emplace_back(row->col_c_str(0));
             }
-            log_debug("relevant autoscan: {}; persistent: {}", row->col_c_str(0), persistent);
+            log_debug("relevant autoscan: {}; isPersistent: {}", row->col_c_str(0), persistent);
         }
 
         if (!delete_as.empty()) {
@@ -1661,26 +1661,26 @@ void SQLDatabase::updateConfigValue(const std::string& key, const std::string& i
 void SQLDatabase::updateAutoscanList(ScanMode scanmode, std::shared_ptr<AutoscanList> list)
 {
 
-    log_debug("setting persistent autoscans untouched - scanmode: {};", AutoscanDirectory::mapScanmode(scanmode).c_str());
+    log_debug("setting isPersistent autoscans untouched - scanmode: {};", AutoscanDirectory::mapScanMode(scanmode).c_str());
     std::ostringstream update;
     update << "UPDATE " << TQ(AUTOSCAN_TABLE)
            << " SET " << TQ("touched") << '=' << mapBool(false)
            << " WHERE "
-           << TQ("persistent") << '=' << mapBool(true)
+           << TQ("isPersistent") << '=' << mapBool(true)
            << " AND " << TQ("scan_mode") << '='
-           << quote(AutoscanDirectory::mapScanmode(scanmode));
+           << quote(AutoscanDirectory::mapScanMode(scanmode));
     exec(update.str());
 
     size_t listSize = list->size();
-    log_debug("updating/adding persistent autoscans (count: {})", listSize);
+    log_debug("updating/adding isPersistent autoscans (count: {})", listSize);
     for (size_t i = 0; i < listSize; i++) {
         log_debug("getting ad {} from list..", i);
         std::shared_ptr<AutoscanDirectory> ad = list->get(i);
         if (ad == nullptr)
             continue;
 
-        // only persistent asD should be given to getAutoscanList
-        assert(ad->persistent());
+        // only isPersistent asD should be given to getAutoscanList
+        assert(ad->isPersistent());
         // the scanmode should match the given parameter
         assert(ad->getScanMode() == scanmode);
 
@@ -1714,7 +1714,7 @@ void SQLDatabase::updateAutoscanList(ScanMode scanmode, std::shared_ptr<Autoscan
     del << "DELETE FROM " << TQ(AUTOSCAN_TABLE)
         << " WHERE " << TQ("touched") << '=' << mapBool(false)
         << " AND " << TQ("scan_mode") << '='
-        << quote(AutoscanDirectory::mapScanmode(scanmode));
+        << quote(AutoscanDirectory::mapScanMode(scanmode));
     exec(del.str());
 }
 
@@ -1722,11 +1722,11 @@ std::shared_ptr<AutoscanList> SQLDatabase::getAutoscanList(ScanMode scanmode)
 {
 #define FLD(field) << TQD('a', field) <<
     std::ostringstream q;
-    q << "SELECT " FLD("id") ',' FLD("obj_id") ',' FLD("scan_level") ',' FLD("scan_mode") ',' FLD("recursive") ',' FLD("hidden") ',' FLD("interval") ',' FLD("last_modified") ',' FLD("persistent") ',' FLD("location") ',' << TQD('t', "location")
+    q << "SELECT " FLD("id") ',' FLD("obj_id") ',' FLD("scan_level") ',' FLD("scan_mode") ',' FLD("recursive") ',' FLD("hidden") ',' FLD("interval") ',' FLD("last_modified") ',' FLD("isPersistent") ',' FLD("location") ',' << TQD('t', "location")
       << " FROM " << TQ(AUTOSCAN_TABLE) << ' ' << TQ('a')
       << " LEFT JOIN " << TQ(CDS_OBJECT_TABLE) << ' ' << TQ('t')
       << " ON " FLD("obj_id") '=' << TQD('t', "id")
-      << " WHERE " FLD("scan_mode") '=' << quote(AutoscanDirectory::mapScanmode(scanmode));
+      << " WHERE " FLD("scan_mode") '=' << quote(AutoscanDirectory::mapScanMode(scanmode));
     auto res = select(q);
     if (res == nullptr)
         throw DatabaseException("", "query error while fetching autoscan list");
@@ -1748,7 +1748,7 @@ std::shared_ptr<AutoscanDirectory> SQLDatabase::getAutoscanDirectory(int objectI
 {
 #define FLD(field) << TQD('a', field) <<
     std::ostringstream q;
-    q << "SELECT " FLD("id") ',' FLD("obj_id") ',' FLD("scan_level") ',' FLD("scan_mode") ',' FLD("recursive") ',' FLD("hidden") ',' FLD("interval") ',' FLD("last_modified") ',' FLD("persistent") ',' FLD("location") ',' << TQD('t', "location")
+    q << "SELECT " FLD("id") ',' FLD("obj_id") ',' FLD("scan_level") ',' FLD("scan_mode") ',' FLD("recursive") ',' FLD("hidden") ',' FLD("interval") ',' FLD("last_modified") ',' FLD("isPersistent") ',' FLD("location") ',' << TQD('t', "location")
       << " FROM " << TQ(AUTOSCAN_TABLE) << ' ' << TQ('a')
       << " LEFT JOIN " << TQ(CDS_OBJECT_TABLE) << ' ' << TQ('t')
       << " ON " FLD("obj_id") '=' << TQD('t', "id")
@@ -1796,11 +1796,11 @@ std::shared_ptr<AutoscanDirectory> SQLDatabase::_fillAutoscanDirectory(const std
     auto dir = std::make_shared<AutoscanDirectory>(location, mode, recursive, persistent, INVALID_SCAN_ID, interval, hidden);
     dir->setObjectID(objectID);
     dir->setDatabaseID(databaseID);
-    dir->setCurrentLMT("", last_modified);
+    dir->setPathLastModified("", last_modified);
     if (last_modified > 0) {
-        dir->setCurrentLMT(location, last_modified);
+        dir->setPathLastModified(location, last_modified);
     }
-    dir->updateLMT();
+    dir->lastModHasChanged();
     return dir;
 }
 
@@ -1815,8 +1815,8 @@ void SQLDatabase::addAutoscanDirectory(std::shared_ptr<AutoscanDirectory> adir)
         objectID = CDS_ID_FS_ROOT;
     else
         objectID = findObjectIDByPath(adir->getLocation());
-    if (!adir->persistent() && objectID < 0)
-        throw_std_runtime_error("tried to add non-persistent autoscan directory with an illegal objectID or location");
+    if (!adir->isPersistent() && objectID < 0)
+        throw_std_runtime_error("tried to add non-isPersistent autoscan directory with an illegal objectID or location");
 
     auto pathIds = _checkOverlappingAutoscans(adir);
 
@@ -1831,18 +1831,18 @@ void SQLDatabase::addAutoscanDirectory(std::shared_ptr<AutoscanDirectory> adir)
       << TQ("hidden") << ','
       << TQ("interval") << ','
       << TQ("last_modified") << ','
-      << TQ("persistent") << ','
+      << TQ("isPersistent") << ','
       << TQ("location") << ','
       << TQ("path_ids")
       << ") VALUES ("
       << (objectID >= 0 ? quote(objectID) : SQL_NULL) << ','
       << quote("full") << ','
-      << quote(AutoscanDirectory::mapScanmode(adir->getScanMode())) << ','
+      << quote(AutoscanDirectory::mapScanMode(adir->getScanMode())) << ','
       << mapBool(adir->getRecursive()) << ','
       << mapBool(adir->getHidden()) << ','
       << quote(adir->getInterval()) << ','
-      << quote(adir->getPreviousLMT("")) << ','
-      << mapBool(adir->persistent()) << ','
+      << quote(adir->getPathLastModified("")) << ','
+      << mapBool(adir->isPersistent()) << ','
       << (objectID >= 0 ? SQL_NULL : quote(adir->getLocation())) << ','
       << (pathIds == nullptr ? SQL_NULL : quote("," + toCSV(*pathIds) + ','))
       << ')';
@@ -1870,13 +1870,14 @@ void SQLDatabase::updateAutoscanDirectory(std::shared_ptr<AutoscanDirectory> adi
       << ',' << TQ("scan_level") << '='
       << quote("full")
       << ',' << TQ("scan_mode") << '='
-      << quote(AutoscanDirectory::mapScanmode(adir->getScanMode()))
+      << quote(AutoscanDirectory::mapScanMode(adir->getScanMode()))
       << ',' << TQ("recursive") << '=' << mapBool(adir->getRecursive())
       << ',' << TQ("hidden") << '=' << mapBool(adir->getHidden())
       << ',' << TQ("interval") << '=' << quote(adir->getInterval());
-    if (adir->getPreviousLMT("") > 0)
-        q << ',' << TQ("last_modified") << '=' << quote(adir->getPreviousLMT(""));
-    q << ',' << TQ("persistent") << '=' << mapBool(adir->persistent())
+    if (adir->getPathLastModified("") > 0) {
+        q << ',' << TQ("last_modified") << '=' << quote(adir->getPathLastModified(""));
+    }
+    q << ',' << TQ("isPersistent") << '=' << mapBool(adir->isPersistent())
       << ',' << TQ("location") << '=' << (objectID >= 0 ? SQL_NULL : quote(adir->getLocation()))
       << ',' << TQ("path_ids") << '=' << (pathIds == nullptr ? SQL_NULL : quote("," + toCSV(*pathIds) + ','))
       << ',' << TQ("touched") << '=' << mapBool(true)

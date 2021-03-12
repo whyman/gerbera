@@ -272,7 +272,7 @@ std::string WebRequestHandler::mapAutoscanType(int type)
     case 1:
         return "ui";
     case 2:
-        return "persistent";
+        return "isPersistent";
     default:
         return "none";
     }

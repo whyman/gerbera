@@ -62,7 +62,7 @@ public:
 
     /// \brief removes the AutoscanDirectory if it is a subdirectory of a given location.
     /// \param parent parent directory.
-    /// \param persistent also remove persistent directories.
+    /// \param persistent also remove isPersistent directories.
     /// \return AutoscanList of removed directories, where each directory object in the list is a copy and not the original reference.
     std::shared_ptr<AutoscanList> removeIfSubdir(const fs::path& parent, bool persistent = false);
 
@@ -72,7 +72,7 @@ public:
     void notifyAll(Timer::Subscriber* sub);
 
     /// \brief updates the last_modified data for all AutoscanDirectories.
-    void updateLMinDB();
+    void flushLastModifiedToDB();
 
     /// \brief returns a copy of the autoscan list in the form of an array
     std::vector<std::shared_ptr<AutoscanDirectory>> getArrayCopy();

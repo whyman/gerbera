@@ -32,7 +32,7 @@ AutoscanList::AutoscanList(std::shared_ptr<Database> database)
 {
 }
 
-void AutoscanList::updateLMinDB()
+void AutoscanList::flushLastModifiedToDB()
 {
     AutoLock lock(mutex);
     for (size_t i = 0; i < list.size(); i++) {
@@ -163,7 +163,7 @@ std::shared_ptr<AutoscanList> AutoscanList::removeIfSubdir(const fs::path& paren
         auto& dir = *it;
 
         if (startswith(dir->getLocation(), parent)) {
-            if (dir->persistent() && !persistent) {
+            if (dir->isPersistent() && !persistent) {
                 ++it;
                 continue;
             }

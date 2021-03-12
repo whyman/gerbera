@@ -168,21 +168,6 @@ std::string& replaceString(std::string& str, std::string_view from, const std::s
     return str;
 }
 
-time_t getLastWriteTime(const fs::path& path)
-{
-    // in future with C+20 we can replace this function too:
-    // auto ftime = fs::last_write_time(p);
-    // time_t cftime = decltype(ftime)::clock::to_time_t(ftime);
-
-    struct stat statbuf;
-    int ret = stat(path.c_str(), &statbuf);
-    if (ret != 0) {
-        throw_std_runtime_error("{}: {}", std::strerror(errno), path.c_str());
-    }
-
-    return statbuf.st_mtime;
-}
-
 bool isRegularFile(const fs::path& path)
 {
     // unfortunately fs::is_regular_file(path) is broken with old libstdc++ on 32bit systems (see #737)
@@ -504,7 +489,10 @@ std::string mimeTypesToCsv(const std::vector<std::string>& mimeTypes)
 
 std::string readTextFile(const fs::path& path)
 {
-    log_debug("Opening text file: {}", path.u8string());
+    if (path.empty()) {
+        throw_std_runtime_error("Cannot open an empty path!");
+    }
+    log_debug("Opening text file: '{}'", path.u8string());
 #ifdef __linux__
     auto f = ::fopen(path.c_str(), "rte");
 #else

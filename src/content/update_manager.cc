@@ -168,6 +168,11 @@ void UpdateManager::containerChanged(int objectID, int flushPolicy)
 
 void UpdateManager::threadProc()
 {
+    if (!server) {
+        log_error("UpdateManager: No server provided, if you are not a test, this is bad!");
+        return;
+    }
+
     struct timespec lastUpdate;
     getTimespecNow(&lastUpdate);
 

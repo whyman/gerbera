@@ -831,8 +831,8 @@ std::shared_ptr<ConfigOption> ConfigDictionarySetup::newOption(const std::map<st
 std::string ConfigAutoscanSetup::getItemPath(int index, config_option_t propOption, config_option_t propOption2, config_option_t propOption3, config_option_t propOption4) const
 {
     return index >= 0 //
-        ? fmt::format("{}/{}/{}[{}]/{}", xpath, AutoscanDirectory::mapScanmode(scanMode), ConfigManager::mapConfigOption(ATTR_AUTOSCAN_DIRECTORY), index, ensureAttribute(propOption)) //
-        : index > -2 ? fmt::format("{}/{}/{}", xpath, AutoscanDirectory::mapScanmode(scanMode), ConfigManager::mapConfigOption(ATTR_AUTOSCAN_DIRECTORY)) //
+        ? fmt::format("{}/{}/{}[{}]/{}", xpath, AutoscanDirectory::mapScanMode(scanMode), ConfigManager::mapConfigOption(ATTR_AUTOSCAN_DIRECTORY), index, ensureAttribute(propOption)) //
+        : index > -2 ? fmt::format("{}/{}/{}", xpath, AutoscanDirectory::mapScanMode(scanMode), ConfigManager::mapConfigOption(ATTR_AUTOSCAN_DIRECTORY)) //
                      : fmt::format("{}/{}", xpath, ConfigManager::mapConfigOption(ATTR_AUTOSCAN_DIRECTORY));
 }
 
@@ -903,7 +903,7 @@ bool ConfigAutoscanSetup::updateItem(size_t i, const std::string& optItem, const
 
     index = getItemPath(i, ATTR_AUTOSCAN_DIRECTORY_MODE);
     if (optItem == index) {
-        log_error("Autoscan Mode cannot be changed {} {}", index, AutoscanDirectory::mapScanmode(entry->getScanMode()));
+        log_error("Autoscan Mode cannot be changed {} {}", index, AutoscanDirectory::mapScanMode(entry->getScanMode()));
         return true;
     }
 
