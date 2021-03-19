@@ -250,7 +250,7 @@ add_library(libgerbera STATIC
         src/web/tasks.cc
         src/web/web_autoscan.cc
         src/web/web_update.cc
-)
+        src/content/autoscan_manager.cc src/content/autoscan_manager.h)
 target_include_directories(libgerbera PUBLIC "${CMAKE_SOURCE_DIR}/src")
 
 add_executable(gerbera src/main.cc)

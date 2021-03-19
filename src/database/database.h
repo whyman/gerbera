@@ -259,7 +259,7 @@ public:
     virtual void storeInternalSetting(const std::string& key, const std::string& value) = 0;
 
     /* autoscan methods */
-    virtual std::shared_ptr<AutoscanList> getAutoscanList(ScanMode scanode) = 0;
+    virtual std::unique_ptr<std::vector<std::shared_ptr<AutoscanDirectory>>> getAutoscanList(ScanMode scanode) = 0;
     virtual void updateAutoscanList(ScanMode scanmode, std::shared_ptr<AutoscanList> list) = 0;
 
     /* config methods */
@@ -267,12 +267,6 @@ public:
     virtual void removeConfigValue(const std::string& item) = 0;
     virtual void updateConfigValue(const std::string& key, const std::string& item, const std::string& value, const std::string& status = "unchanged") = 0;
 
-    /// \brief returns the AutoscanDirectory for the given objectID or nullptr if
-    /// it's not an autoscan start point - scan id will be invalid
-    /// \param objectID the object id to get the AutoscanDirectory for
-    /// \return nullptr if the given id is no autoscan start point,
-    /// or the matching AutoscanDirectory
-    virtual std::shared_ptr<AutoscanDirectory> getAutoscanDirectory(int objectID) = 0;
     virtual void addAutoscanDirectory(std::shared_ptr<AutoscanDirectory> adir) = 0;
     virtual void updateAutoscanDirectory(std::shared_ptr<AutoscanDirectory> adir) = 0;
     virtual void removeAutoscanDirectory(std::shared_ptr<AutoscanDirectory> adir) = 0;

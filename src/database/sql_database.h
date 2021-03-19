@@ -144,10 +144,9 @@ public:
     std::string getInternalSetting(const std::string& key) override;
     void storeInternalSetting(const std::string& key, const std::string& value) override = 0;
 
-    std::shared_ptr<AutoscanList> getAutoscanList(ScanMode scanmode) override;
+    std::unique_ptr<std::vector<std::shared_ptr<AutoscanDirectory>>> getAutoscanList(ScanMode scanmode) override;
     void updateAutoscanList(ScanMode scanmode, std::shared_ptr<AutoscanList> list) override;
 
-    std::shared_ptr<AutoscanDirectory> getAutoscanDirectory(int objectID) override;
     void addAutoscanDirectory(std::shared_ptr<AutoscanDirectory> adir) override;
     void updateAutoscanDirectory(std::shared_ptr<AutoscanDirectory> adir) override;
     void removeAutoscanDirectory(std::shared_ptr<AutoscanDirectory> adir) override;

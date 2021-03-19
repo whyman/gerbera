@@ -1555,7 +1555,7 @@ std::vector<std::string> ConfigManager::getArrayOption(config_option_t option) c
     return options->at(option)->getArrayOption();
 }
 
-std::shared_ptr<AutoscanList> ConfigManager::getAutoscanListOption(config_option_t option) const
+std::unique_ptr<std::vector<std::shared_ptr<AutoscanDirectory>>> ConfigManager::getAutoscanListOption(config_option_t option) const
 {
     return options->at(option)->getAutoscanListOption();
 }

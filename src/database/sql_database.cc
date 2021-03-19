@@ -1739,7 +1739,7 @@ void SQLDatabase::updateAutoscanList(ScanMode scanmode, std::shared_ptr<Autoscan
     exec(del.str());
 }
 
-std::shared_ptr<AutoscanList> SQLDatabase::getAutoscanList(ScanMode scanmode)
+std::unique_ptr<std::vector<std::shared_ptr<AutoscanDirectory>>> SQLDatabase::getAutoscanList(ScanMode scanmode)
 {
 #define FLD(field) << TQD('a', field) <<
     std::ostringstream q;
@@ -1749,40 +1749,20 @@ std::shared_ptr<AutoscanList> SQLDatabase::getAutoscanList(ScanMode scanmode)
       << " ON " FLD("obj_id") '=' << TQD('t', "id")
       << " WHERE " FLD("scan_mode") '=' << quote(AutoscanDirectory::mapScanmode(scanmode));
     auto res = select(q);
-    if (res == nullptr)
-        throw DatabaseException("", "query error while fetching autoscan list");
-
-    auto self = getSelf();
-    auto ret = std::make_shared<AutoscanList>(self);
+    if (res == nullptr) {
+        throw DatabaseException("", "Query error while fetching autoscan list");
+    }
+    auto ret = std::make_unique<std::vector<std::shared_ptr<AutoscanDirectory>>>(res->getNumRows());
     std::unique_ptr<SQLRow> row;
     while ((row = res->nextRow()) != nullptr) {
         std::shared_ptr<AutoscanDirectory> adir = _fillAutoscanDirectory(row);
-        if (adir == nullptr)
+        if (adir == nullptr) {
             _removeAutoscanDirectory(std::stoi(row->col(0)));
-        else
-            ret->add(adir);
+        } else {
+            ret->push_back(adir);
+        }
     }
     return ret;
-}
-
-std::shared_ptr<AutoscanDirectory> SQLDatabase::getAutoscanDirectory(int objectID)
-{
-#define FLD(field) << TQD('a', field) <<
-    std::ostringstream q;
-    q << "SELECT " FLD("id") ',' FLD("obj_id") ',' FLD("scan_level") ',' FLD("scan_mode") ',' FLD("recursive") ',' FLD("hidden") ',' FLD("interval") ',' FLD("last_modified") ',' FLD("persistent") ',' FLD("location") ',' << TQD('t', "location")
-      << " FROM " << TQ(AUTOSCAN_TABLE) << ' ' << TQ('a')
-      << " LEFT JOIN " << TQ(CDS_OBJECT_TABLE) << ' ' << TQ('t')
-      << " ON " FLD("obj_id") '=' << TQD('t', "id")
-      << " WHERE " << TQD('t', "id") << '=' << quote(objectID);
-    auto res = select(q);
-    if (res == nullptr)
-        throw DatabaseException("", "query error while fetching autoscan");
-
-    std::unique_ptr<SQLRow> row = res->nextRow();
-    if (row == nullptr)
-        return nullptr;
-
-    return _fillAutoscanDirectory(row);
 }
 
 std::shared_ptr<AutoscanDirectory> SQLDatabase::_fillAutoscanDirectory(const std::unique_ptr<SQLRow>& row)
@@ -1912,6 +1892,7 @@ void SQLDatabase::removeAutoscanDirectory(std::shared_ptr<AutoscanDirectory> adi
 
 void SQLDatabase::_removeAutoscanDirectory(int autoscanID)
 {
+    log_debug("Removing autoscan directory");
     if (autoscanID == INVALID_OBJECT_ID)
         return;
     int objectID = _getAutoscanObjectID(autoscanID);

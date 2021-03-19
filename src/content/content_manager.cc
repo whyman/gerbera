@@ -99,20 +99,6 @@ ContentManager::ContentManager(const std::shared_ptr<Context>& context,
 #endif
 
     mimetype_contenttype_map = config->getDictionaryOption(CFG_IMPORT_MAPPINGS_MIMETYPE_TO_CONTENTTYPE_LIST);
-
-    auto config_timed_list = config->getAutoscanListOption(CFG_IMPORT_AUTOSCAN_TIMED_LIST);
-    for (size_t i = 0; i < config_timed_list->size(); i++) {
-        auto dir = config_timed_list->get(i);
-        if (dir != nullptr) {
-            fs::path path = dir->getLocation();
-            if (fs::is_directory(path)) {
-                dir->setObjectID(ensurePathExistence(path));
-            }
-        }
-    }
-
-    database->updateAutoscanList(ScanMode::Timed, config_timed_list);
-    autoscan_timed = database->getAutoscanList(ScanMode::Timed);
 }
 
 void ContentManager::run()
@@ -127,31 +113,6 @@ void ContentManager::run()
 #endif
 
     auto self = shared_from_this();
-#ifdef HAVE_INOTIFY
-    inotify = std::make_unique<AutoscanInotify>(self);
-
-    if (config->getBoolOption(CFG_IMPORT_AUTOSCAN_USE_INOTIFY)) {
-        auto config_inotify_list = config->getAutoscanListOption(CFG_IMPORT_AUTOSCAN_INOTIFY_LIST);
-        for (size_t i = 0; i < config_inotify_list->size(); i++) {
-            auto dir = config_inotify_list->get(i);
-            if (dir != nullptr) {
-                fs::path path = dir->getLocation();
-                if (fs::is_directory(path)) {
-                    dir->setObjectID(ensurePathExistence(path));
-                }
-            }
-        }
-
-        database->updateAutoscanList(ScanMode::INotify, config_inotify_list);
-        autoscan_inotify = database->getAutoscanList(ScanMode::INotify);
-    } else {
-        // make an empty list so we do not have to do extra checks on shutdown
-        autoscan_inotify = std::make_shared<AutoscanList>(database);
-    }
-
-    // Start INotify thread
-    inotify->run();
-#endif
 
     std::string layout_type = config->getOption(CFG_IMPORT_SCRIPTING_VIRTUAL_LAYOUT_TYPE);
     if ((layout_type == "builtin") || (layout_type == "js"))
