@@ -144,19 +144,19 @@ std::unique_ptr<IOHandler> WebRequestHandler::open(const char* filename, enum Up
         }
     } catch (const LoginException& e) {
         error = e.what();
-        errorCode = 300;
+        errorCode = 401;
     } catch (const ObjectNotFoundException& e) {
         error = e.what();
-        errorCode = 200;
+        errorCode = 200; // Really?
     } catch (const SessionException& e) {
         error = e.what();
-        errorCode = 400;
+        errorCode = 401;
     } catch (const DatabaseException& e) {
         error = e.getUserMessage();
         errorCode = 500;
     } catch (const std::runtime_error& e) {
         error = fmt::format("Error: {}", e.what());
-        errorCode = 800;
+        errorCode = 500;
     }
 
     if (error.empty()) {
@@ -168,7 +168,7 @@ std::unique_ptr<IOHandler> WebRequestHandler::open(const char* filename, enum Up
         errorEl.append_attribute("text") = error.c_str();
 
         if (errorCode == 0)
-            errorCode = 899;
+            errorCode = 500;
         errorEl.append_attribute("code") = errorCode;
 
         log_warning("Web Error: {} {}", errorCode, error);
@@ -180,7 +180,7 @@ std::unique_ptr<IOHandler> WebRequestHandler::open(const char* filename, enum Up
         log_error("Web marshalling error: {}", e.what());
     }
 
-    log_debug("output-----------------------{}", output);
+    log_debug("output: {}", output);
 
     auto ioHandler = std::make_unique<MemIOHandler>(output);
     ioHandler->open(mode);
