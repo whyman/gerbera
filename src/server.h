@@ -119,14 +119,6 @@ protected:
     /// persistent over reboots.
     std::string serverUDN;
 
-    /// \brief Name of the virtual web server directory.
-    ///
-    /// All requests going to /content/ will be handled by our web
-    /// callback functions.
-    /// \todo Is there any need that this is a variable? A constant
-    /// should be sufficient here.
-    std::string virtual_directory;
-
     /// \brief Full virtual web server url.
     ///
     /// The URL is constructed upon server initialization, since

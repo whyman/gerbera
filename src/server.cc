@@ -65,8 +65,6 @@ Server::Server(std::shared_ptr<Config> config)
 
 void Server::init()
 {
-    virtual_directory = SERVER_VIRTUAL_DIR;
-
     serverUDN = config->getOption(CFG_SERVER_UDN);
     aliveAdvertisementInterval = config->getIntOption(CFG_SERVER_ALIVE_INTERVAL);
 
@@ -133,10 +131,10 @@ void Server::run()
 
     log_debug("webroot: {}", webRoot);
 
-    log_debug("Setting virtual dir to: {}", virtual_directory);
-    ret = UpnpAddVirtualDir(virtual_directory.c_str(), this, nullptr);
+    log_debug("Setting virtual dir to: {}", SERVER_VIRTUAL_DIR);
+    ret = UpnpAddVirtualDir(SERVER_VIRTUAL_DIR, this, nullptr);
     if (ret != UPNP_E_SUCCESS) {
-        throw UpnpException(ret, fmt::format("run: UpnpAddVirtualDir failed {}", virtual_directory));
+        throw UpnpException(ret, fmt::format("run: UpnpAddVirtualDir failed {}", SERVER_VIRTUAL_DIR));
     }
 
     ret = registerVirtualDirCallbacks();
@@ -237,7 +235,7 @@ int Server::startupInterface(const std::string& iface, in_port_t inPort)
     log_info("IPv6: Server bound to: {}:{}", UpnpGetServerIp6Address(), UpnpGetServerPort6());
     log_info("IPv6 ULA/GLA: Server bound to: {}:{}", UpnpGetServerUlaGuaIp6Address(), UpnpGetServerUlaGuaPort6());
 
-    virtualUrl = fmt::format("http://{}:{}/{}", ip, port, virtual_directory);
+    virtualUrl = fmt::format("http://{}:{}/{}", ip, port, SERVER_VIRTUAL_DIR);
 
     return ret;
 }
@@ -281,7 +279,7 @@ void Server::emptyBookmark()
 std::string Server::getVirtualUrl() const
 {
     auto cfgVirt = config->getOption(CFG_VIRTUAL_URL);
-    return cfgVirt.empty() ? virtualUrl : fmt::format("{}/{}", cfgVirt, virtual_directory);
+    return cfgVirt.empty() ? virtualUrl : fmt::format("{}/{}", cfgVirt, SERVER_VIRTUAL_DIR);
 }
 
 bool Server::getShutdownStatus() const
