@@ -118,8 +118,8 @@ add_library(libgerbera STATIC
         src/content/update_manager.h
         src/context.cc
         src/context.h
+        src/contrib/httplib.cc
         src/contrib/md5.c
-        src/contrib/md5.h
         src/device_description_handler.cc
         src/device_description_handler.h
         src/exceptions.cc
@@ -246,7 +246,7 @@ add_library(libgerbera STATIC
         src/web/tasks.cc
         src/web/web_autoscan.cc
         src/web/web_update.cc
-)
+        src/web/ui_server.cc src/web/ui_server.h)
 target_include_directories(libgerbera PUBLIC "${CMAKE_SOURCE_DIR}/src")
 
 add_executable(gerbera src/main.cc)

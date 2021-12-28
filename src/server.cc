@@ -54,6 +54,7 @@
 
 #ifdef HAVE_CURL
 #include "url_request_handler.h"
+#include "web/ui_server.h"
 #endif
 
 Server::Server(std::shared_ptr<Config> config)
@@ -206,6 +207,12 @@ void Server::run()
     }
     writeBookmark(url);
     log_info("The Web UI can be reached by following this link: {}/", url);
+
+    startUI(iface, port);
+}
+
+void Server::startUI(const std::string& iface, in_port_t port) {
+    uiServer = std::make_unique<UIServer>(context, content, xmlbuilder, iface, port);
 }
 
 int Server::startupInterface(const std::string& iface, in_port_t inPort)

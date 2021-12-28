@@ -39,6 +39,8 @@
 #include "upnp_cds.h"
 #include "upnp_cm.h"
 #include "upnp_mrreg.h"
+#include "contrib/httplib.h"
+#include "web/ui_server.h"
 
 // forward declaration
 class Timer;
@@ -221,6 +223,9 @@ protected:
 
     std::string getPresentationUrl() const;
     int startupInterface(const std::string& iface, in_port_t inPort);
+
+    void startUI(const std::string& iface, in_port_t port);
+    std::unique_ptr<UIServer> uiServer;
 };
 
 #endif // __SERVER_H__
