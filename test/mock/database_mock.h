@@ -56,8 +56,8 @@ public:
     void removeConfigValue(const std::string& item) override { }
     void updateConfigValue(const std::string& key, const std::string& item, const std::string& value, const std::string& status = "unchanged") override { }
 
-    std::shared_ptr<AutoscanList> getAutoscanList(ScanMode scanode) override { return {}; }
-    void updateAutoscanList(ScanMode scanmode, const std::shared_ptr<AutoscanList>& list) override { }
+    std::shared_ptr<AutoscanManager> getAutoscanList(ScanMode scanode) override { return {}; }
+    void updateAutoscanList(ScanMode scanmode, const std::shared_ptr<AutoscanManager>& list) override { }
 
     std::shared_ptr<AutoscanDirectory> getAutoscanDirectory(int objectID) override { return {}; }
     void addAutoscanDirectory(const std::shared_ptr<AutoscanDirectory>& adir) override { }

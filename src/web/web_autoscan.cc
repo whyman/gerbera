@@ -32,6 +32,8 @@
 #include "pages.h" // API
 
 #include "content/autoscan/autoscan_directory.h"
+#include "content/autoscan/timed_autoscan_directory.h"
+#include "content/autoscan/inotify_autoscan_directory.h"
 #include "content/content_manager.h"
 #include "database/database.h"
 
@@ -95,13 +97,12 @@ void Web::Autoscan::process()
             //     location.c_str(), AutoscanDirectory::mapScanmode(scan_mode).c_str(),
             //     recursive, interval, hidden);
 
-            auto autoscan = std::make_shared<AutoscanDirectory>(
-                "", // location
-                scanMode,
-                recursive,
-                false);
-            autoscan->setInterval(std::chrono::seconds(interval));
-            autoscan->setHidden(hidden);
+            std::shared_ptr<AutoscanDirectory> autoscan;
+            if (scanMode == ScanMode::Timed) {
+                autoscan = std::make_shared<TimedAutoscanDirectory>("", recursive, hidden, std::chrono::seconds(interval), AutoscanSource::Web);
+            } else if (scanMode == ScanMode::INotify) {
+                autoscan = std::make_shared<INotifyAutoscanDirectory>("", recursive, hidden, AutoscanSource::Web);
+            }
             autoscan->setObjectID(objectID);
             content->setAutoscanDirectory(autoscan);
         }
@@ -142,7 +143,14 @@ void Web::Autoscan::autoscan2XML(const std::shared_ptr<AutoscanDirectory>& adir,
         element.append_child("scan_mode").append_child(pugi::node_pcdata).set_value(AutoscanDirectory::mapScanMode(adir->getScanMode()));
         element.append_child("recursive").append_child(pugi::node_pcdata).set_value(adir->isRecursive() ? "1" : "0");
         element.append_child("hidden").append_child(pugi::node_pcdata).set_value(adir->getHidden() ? "1" : "0");
-        element.append_child("interval").append_child(pugi::node_pcdata).set_value(fmt::to_string(adir->getInterval().count()).c_str());
+
         element.append_child("persistent").append_child(pugi::node_pcdata).set_value(adir->isPersistent() ? "1" : "0");
+
+        auto timed = std::dynamic_pointer_cast<TimedAutoscanDirectory>(adir);
+        if (timed) {
+            element.append_child("interval").append_child(pugi::node_pcdata).set_value(fmt::to_string(timed->getInterval().count()).c_str());
+        } else {
+            element.append_child("interval").append_child(pugi::node_pcdata).set_value("0");
+        }
     }
 }

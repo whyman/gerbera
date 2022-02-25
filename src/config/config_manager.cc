@@ -559,7 +559,7 @@ std::vector<std::string> ConfigManager::getArrayOption(config_option_t option) c
     return optionValue->getArrayOption();
 }
 
-std::shared_ptr<AutoscanList> ConfigManager::getAutoscanListOption(config_option_t option) const
+std::shared_ptr<AutoscanManager> ConfigManager::getAutoscanListOption(config_option_t option) const
 {
     auto optionValue = options.at(option);
     if (!optionValue) {

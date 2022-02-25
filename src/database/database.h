@@ -40,7 +40,7 @@
 
 // forward declaration
 class AutoscanDirectory;
-class AutoscanList;
+class AutoscanManager;
 class CdsContainer;
 class CdsObject;
 class Config;
@@ -264,8 +264,8 @@ public:
     virtual void storeInternalSetting(const std::string& key, const std::string& value) = 0;
 
     /* autoscan methods */
-    virtual std::shared_ptr<AutoscanList> getAutoscanList(ScanMode scanode) = 0;
-    virtual void updateAutoscanList(ScanMode scanmode, const std::shared_ptr<AutoscanList>& list) = 0;
+    virtual std::shared_ptr<AutoscanManager> getAutoscanList(ScanMode scanode) = 0;
+    virtual void updateAutoscanList(ScanMode scanmode, const std::shared_ptr<AutoscanManager>& list) = 0;
 
     /* config methods */
     virtual std::vector<ConfigValue> getConfigValues() = 0;

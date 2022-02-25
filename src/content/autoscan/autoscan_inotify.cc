@@ -220,9 +220,10 @@ void AutoscanInotify::threadProc()
                             if (mask & IN_MOVE_SELF)
                                 inotify->removeWatch(wd);
                             auto watch = getStartPoint(wdObj);
-                            if (watch && adir->isPersistent()) {
+                            if (watch && adir->getSource() == AutoscanSource::ConfigFile) {
                                 monitorNonexisting(path, watch->getAutoscanDirectory());
-                                content->handlePeristentAutoscanRemove(adir);
+                                // TODO FIXME
+                                //content->handlePeristentAutoscanRemove(adir);
                             }
                         }
 
@@ -358,7 +359,8 @@ void AutoscanInotify::recheckNonexistingMonitor(int curWd, const std::vector<std
                 removeNonexistingMonitor(curWd, watches.at(curWd), pathAr);
             if (first) {
                 monitorDirectory(path, adir, true);
-                content->handlePersistentAutoscanRecreate(adir);
+                // FIXME TODO
+                //content->handlePersistentAutoscanRecreate(adir);
             } else {
                 monitorDirectory(path, adir, false, &pathAr);
             }
@@ -397,7 +399,8 @@ void AutoscanInotify::checkMoveWatches(int wd, const std::shared_ptr<Wd>& wdObj)
                     auto adir = watchToRemove->getAutoscanDirectory();
                     if (adir->isPersistent()) {
                         monitorNonexisting(path, adir);
-                        content->handlePeristentAutoscanRemove(adir);
+                        // TODO FIXME
+                        //content->handlePeristentAutoscanRemove(adir);
                     }
 
                     int objectID = database->findObjectIDByPath(path, true);

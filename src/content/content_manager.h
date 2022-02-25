@@ -56,7 +56,7 @@ class ScriptingRuntime;
 
 #include "layout/layout.h"
 
-#include "content/autoscan/autoscan_list.h"
+#include "content/autoscan/autoscan_manager.h"
 #ifdef HAVE_INOTIFY
 #include "content/autoscan/autoscan_inotify.h"
 #endif // HAVE_INOTIFY
@@ -235,30 +235,7 @@ public:
     /// \param obj the object to update
     void updateObject(const std::shared_ptr<CdsObject>& obj, bool sendUpdates = true);
 
-    /// \brief Gets an AutocsanDirectrory from the watch list.
-    std::shared_ptr<AutoscanDirectory> getAutoscanDirectory(int scanID, ScanMode scanMode) const;
 
-    /// \brief Gets an AutoscanDirectory (by objectID) from the watch list.
-    std::shared_ptr<AutoscanDirectory> getAutoscanDirectory(int objectID) const;
-
-    /// \brief Get an AutoscanDirectory given by location on disk from the watch list.
-    std::shared_ptr<AutoscanDirectory> getAutoscanDirectory(const fs::path& location) const;
-
-    /// \brief returns an array of all autoscan directories
-    std::vector<std::shared_ptr<AutoscanDirectory>> getAutoscanDirectories() const;
-
-    /// \brief Removes an AutoscanDirectrory (found by scanID) from the watch list.
-    void removeAutoscanDirectory(const std::shared_ptr<AutoscanDirectory>& adir);
-
-    /// \brief Update autoscan parameters for an existing autoscan directory
-    /// or add a new autoscan directory
-    void setAutoscanDirectory(const std::shared_ptr<AutoscanDirectory>& dir);
-
-    /// \brief handles the removal of a persistent autoscan directory
-    void handlePeristentAutoscanRemove(const std::shared_ptr<AutoscanDirectory>& adir);
-
-    /// \brief handles the recreation of a persistent autoscan directory
-    void handlePersistentAutoscanRecreate(const std::shared_ptr<AutoscanDirectory>& adir);
 
     void rescanDirectory(const std::shared_ptr<AutoscanDirectory>& adir, int objectId, fs::path descPath = {}, bool cancellable = true);
 
@@ -312,12 +289,6 @@ protected:
     std::shared_ptr<LastFm> last_fm;
 
     std::map<std::string, std::string> mimetypeContenttypeMap;
-
-    std::shared_ptr<AutoscanList> autoscan_timed;
-#ifdef HAVE_INOTIFY
-    std::unique_ptr<AutoscanInotify> inotify;
-    std::shared_ptr<AutoscanList> autoscan_inotify;
-#endif
 
     std::vector<std::shared_ptr<Executor>> process_list;
 

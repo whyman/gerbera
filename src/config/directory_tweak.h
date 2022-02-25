@@ -35,6 +35,8 @@
 
 // forward declaration
 class AutoscanDirectory;
+class TimedAutoscanDirectory;
+class INotifyAutoscanDirectory;
 class Config;
 class DirectoryTweak;
 

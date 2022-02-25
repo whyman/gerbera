@@ -30,6 +30,7 @@
 #include "config_definition.h"
 #include "config_options.h"
 #include "content/autoscan/autoscan_directory.h"
+#include "content/autoscan/timed_autoscan_directory.h"
 #include "directory_tweak.h"
 #include "dynamic_content.h"
 #include "metadata/metadata_handler.h"
@@ -37,6 +38,7 @@
 
 #ifdef HAVE_INOTIFY
 #include "util/mt_inotify.h"
+#include "content/autoscan/inotify_autoscan_directory.h"
 #endif
 
 pugi::xml_node ConfigSetup::getXmlElement(const pugi::xml_node& root) const
@@ -861,7 +863,7 @@ std::string ConfigAutoscanSetup::getItemPath(int index, config_option_t propOpti
 /// \brief Creates an array of AutoscanDirectory objects from a XML nodeset.
 /// \param element starting element of the nodeset.
 /// \param scanmode add only directories with the specified scanmode to the array
-bool ConfigAutoscanSetup::createOptionFromNode(const pugi::xml_node& element, std::shared_ptr<AutoscanList>& result)
+bool ConfigAutoscanSetup::createOptionFromNode(const pugi::xml_node& element, std::shared_ptr<AutoscanManager>& result)
 {
     if (!element)
         return true;
@@ -884,18 +886,17 @@ bool ConfigAutoscanSetup::createOptionFromNode(const pugi::xml_node& element, st
             continue; // skip scan modes that we are not interested in (content manager needs one mode type per array)
         }
 
-        unsigned int interval = 0;
-        if (mode == ScanMode::Timed) {
-            interval = ConfigDefinition::findConfigSetup<ConfigIntSetup>(ATTR_AUTOSCAN_DIRECTORY_INTERVAL)->getXmlContent(child);
-        }
-
         bool recursive = ConfigDefinition::findConfigSetup<ConfigBoolSetup>(ATTR_AUTOSCAN_DIRECTORY_RECURSIVE)->getXmlContent(child);
         auto cs = ConfigDefinition::findConfigSetup<ConfigBoolSetup>(ATTR_AUTOSCAN_DIRECTORY_HIDDENFILES);
         bool hidden = cs->hasXmlElement(child) ? cs->getXmlContent(child) : hiddenFiles;
 
-        auto dir = std::make_shared<AutoscanDirectory>(location, mode, recursive, true);
-        dir->setInterval(std::chrono::seconds(interval));
-        dir->setHidden(hidden);
+        std::shared_ptr<AutoscanDirectory> dir;
+        if (mode == ScanMode::Timed) {
+            auto interval = std::chrono::seconds(ConfigDefinition::findConfigSetup<ConfigIntSetup>(ATTR_AUTOSCAN_DIRECTORY_INTERVAL)->getXmlContent(child));
+            dir = std::make_shared<TimedAutoscanDirectory>(location, recursive, hidden, interval, AutoscanSource::ConfigFile);
+        } else if (mode == ScanMode::INotify) {
+            dir = std::make_shared<INotifyAutoscanDirectory>(location, recursive, hidden, AutoscanSource::ConfigFile);
+        }
         try {
             result->add(dir);
         } catch (const std::runtime_error& e) {
@@ -915,13 +916,7 @@ bool ConfigAutoscanSetup::updateItem(std::size_t i, const std::string& optItem, 
     }
 
     if (optItem == index) {
-        if (entry->isOriginal())
-            config->setOrigValue(index, entry->getLocation());
-        auto pathValue = optValue;
-        if (ConfigDefinition::findConfigSetup<ConfigPathSetup>(ATTR_AUTOSCAN_DIRECTORY_LOCATION)->checkPathValue(optValue, pathValue)) {
-            entry->setLocation(pathValue);
-        }
-        log_debug("New Autoscan Detail {} {}", index, config->getAutoscanListOption(option)->get(i)->getLocation().string());
+        log_error("Autoscan Location cannot be changed {} {}", index, AutoscanDirectory::mapScanMode(entry->getScanMode()));
         return true;
     }
 
@@ -933,28 +928,19 @@ bool ConfigAutoscanSetup::updateItem(std::size_t i, const std::string& optItem, 
 
     index = getItemPath(i, ATTR_AUTOSCAN_DIRECTORY_INTERVAL);
     if (optItem == index) {
-        if (entry->isOriginal())
-            config->setOrigValue(index, fmt::to_string(entry->getInterval().count()));
-        entry->setInterval(std::chrono::seconds(ConfigDefinition::findConfigSetup<ConfigIntSetup>(ATTR_AUTOSCAN_DIRECTORY_INTERVAL)->checkIntValue(optValue)));
-        log_debug("New Autoscan Detail {} {}", index, config->getAutoscanListOption(option)->get(i)->getInterval().count());
+        log_error("Autoscan Interval cannot be changed {} {}", index, AutoscanDirectory::mapScanMode(entry->getScanMode()));
         return true;
     }
 
     index = getItemPath(i, ATTR_AUTOSCAN_DIRECTORY_RECURSIVE);
     if (optItem == index) {
-        if (entry->isOriginal())
-            config->setOrigValue(index, entry->isRecursive());
-        entry->setRecursive(ConfigDefinition::findConfigSetup<ConfigBoolSetup>(ATTR_AUTOSCAN_DIRECTORY_RECURSIVE)->checkValue(optValue));
-        log_debug("New Autoscan Detail {} {}", index, config->getAutoscanListOption(option)->get(i)->isRecursive());
+        log_error("Autoscan Recursive cannot be changed {} {}", index, AutoscanDirectory::mapScanMode(entry->getScanMode()));
         return true;
     }
 
     index = getItemPath(i, ATTR_AUTOSCAN_DIRECTORY_HIDDENFILES);
     if (optItem == index) {
-        if (entry->isOriginal())
-            config->setOrigValue(index, entry->getHidden());
-        entry->setHidden(ConfigDefinition::findConfigSetup<ConfigBoolSetup>(ATTR_AUTOSCAN_DIRECTORY_HIDDENFILES)->checkValue(optValue));
-        log_debug("New Autoscan Detail {} {}", index, config->getAutoscanListOption(option)->get(i)->getHidden());
+        log_error("Autoscan Hidden cannot be changed {} {}", index, AutoscanDirectory::mapScanMode(entry->getScanMode()));
         return true;
     }
     return false;
@@ -962,40 +948,41 @@ bool ConfigAutoscanSetup::updateItem(std::size_t i, const std::string& optItem, 
 
 bool ConfigAutoscanSetup::updateDetail(const std::string& optItem, std::string& optValue, const std::shared_ptr<Config>& config, const std::map<std::string, std::string>* arguments)
 {
-    auto uPath = getUniquePath();
-    if (startswith(optItem, uPath)) {
-        log_debug("Updating Autoscan Detail {} {} {}", uPath, optItem, optValue);
-        auto value = std::dynamic_pointer_cast<AutoscanListOption>(optionValue);
-
-        auto list = value->getAutoscanListOption();
-        auto i = extractIndex(optItem);
-
-        if (i < std::numeric_limits<std::size_t>::max()) {
-            auto entry = list->get(i, true);
-            std::string status = arguments && arguments->find("status") != arguments->end() ? arguments->at("status") : "";
-            if (!entry && (status == STATUS_ADDED || status == STATUS_MANUAL)) {
-                entry = std::make_shared<AutoscanDirectory>();
-                entry->setScanMode(scanMode);
-                list->add(entry, i);
-            }
-            if (entry && (status == STATUS_REMOVED || status == STATUS_KILLED)) {
-                list->remove(i, true);
-                return true;
-            }
-            if (entry && status == STATUS_RESET) {
-                list->add(entry, i);
-            }
-            if (entry && updateItem(i, optItem, config, entry, optValue, status)) {
-                return true;
-            }
-        }
-        for (i = 0; i < list->getEditSize(); i++) {
-            auto entry = list->get(i, true);
-            if (updateItem(i, optItem, config, entry, optValue)) {
-                return true;
-            }
-        }
-    }
+    // TODO FIXME
+//    auto uPath = getUniquePath();
+//    if (startswith(optItem, uPath)) {
+//        log_debug("Updating Autoscan Detail {} {} {}", uPath, optItem, optValue);
+//        auto value = std::dynamic_pointer_cast<AutoscanListOption>(optionValue);
+//
+//        auto list = value->getAutoscanListOption();
+//        auto i = extractIndex(optItem);
+//
+//        if (i < std::numeric_limits<std::size_t>::max()) {
+//            auto entry = list->get(i, true);
+//            std::string status = arguments && arguments->find("status") != arguments->end() ? arguments->at("status") : "";
+//            if (!entry && (status == STATUS_ADDED || status == STATUS_MANUAL)) {
+//                entry = std::make_shared<AutoscanDirectory>();
+//                entry->setScanMode(scanMode);
+//                list->add(entry, i);
+//            }
+//            if (entry && (status == STATUS_REMOVED || status == STATUS_KILLED)) {
+//                list->remove(i, true);
+//                return true;
+//            }
+//            if (entry && status == STATUS_RESET) {
+//                list->add(entry, i);
+//            }
+//            if (entry && updateItem(i, optItem, config, entry, optValue, status)) {
+//                return true;
+//            }
+//        }
+//        for (i = 0; i < list->getEditSize(); i++) {
+//            auto entry = list->get(i, true);
+//            if (updateItem(i, optItem, config, entry, optValue)) {
+//                return true;
+//            }
+//        }
+//    }
     return false;
 }
 
@@ -1010,7 +997,7 @@ void ConfigAutoscanSetup::makeOption(const pugi::xml_node& root, const std::shar
 
 std::shared_ptr<ConfigOption> ConfigAutoscanSetup::newOption(const pugi::xml_node& optValue)
 {
-    auto result = std::make_shared<AutoscanList>(nullptr);
+    auto result = std::make_shared<AutoscanManager>(nullptr);
     if (!createOptionFromNode(optValue, result)) {
         throw_std_runtime_error("Init {} autoscan failed '{}'", xpath, optValue);
     }

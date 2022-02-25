@@ -34,11 +34,12 @@
 #include "content/content_manager.h"
 #include "database/database.h"
 
-AutoscanDirectory::AutoscanDirectory(fs::path location, ScanMode mode, bool recursive, bool persistent)
+AutoscanDirectory::AutoscanDirectory(fs::path location, ScanMode mode, bool recursive, bool hidden, AutoscanSource source)
     : location(std::move(location))
     , mode(mode)
     , recursive(recursive)
-    , persistent_flag(persistent)
+    , hidden(hidden)
+    , source(source)
 {
 }
 
@@ -103,12 +104,6 @@ void AutoscanDirectory::setLocation(const fs::path& location)
     this->location = location;
 }
 
-void AutoscanDirectory::setScanID(int id)
-{
-    scanID = id;
-    timer_parameter->setID(id);
-}
-
 const char* AutoscanDirectory::mapScanMode(ScanMode scanmode)
 {
     switch (scanmode) {
@@ -128,26 +123,4 @@ ScanMode AutoscanDirectory::remapScanMode(const std::string& scanmode)
         return ScanMode::INotify;
 
     throw_std_runtime_error("Illegal scanmode ({}) given to remapScanMode()", scanmode);
-}
-
-void AutoscanDirectory::copyTo(const std::shared_ptr<AutoscanDirectory>& copy) const
-{
-    copy->location = location;
-    copy->mode = mode;
-    copy->recursive = recursive;
-    copy->hidden = hidden;
-    copy->persistent_flag = persistent_flag;
-    copy->interval = interval;
-    copy->taskCount = taskCount;
-    copy->scanID = scanID;
-    copy->objectID = objectID;
-    copy->databaseID = databaseID;
-    copy->last_mod_previous_scan = last_mod_previous_scan;
-    copy->last_mod_current_scan = last_mod_current_scan;
-    copy->timer_parameter = timer_parameter;
-}
-
-std::shared_ptr<Timer::Parameter> AutoscanDirectory::getTimerParameter() const
-{
-    return timer_parameter;
 }

@@ -46,6 +46,8 @@
 #include "util/mime.h"
 #include "util/string_converter.h"
 #include "util/tools.h"
+#include "content/autoscan/timed_autoscan_directory.h"
+#include "content/autoscan/inotify_autoscan_directory.h"
 
 #define MAX_REMOVE_SIZE 1000
 #define MAX_REMOVE_RECURSION 500
@@ -2026,7 +2028,7 @@ void SQLDatabase::updateConfigValue(const std::string& key, const std::string& i
     }
 }
 
-void SQLDatabase::updateAutoscanList(ScanMode scanmode, const std::shared_ptr<AutoscanList>& list)
+void SQLDatabase::updateAutoscanList(ScanMode scanmode, const std::shared_ptr<AutoscanManager>& list)
 {
     log_debug("setting persistent autoscans untouched - scanmode: {};", AutoscanDirectory::mapScanMode(scanmode));
 
@@ -2076,7 +2078,7 @@ void SQLDatabase::updateAutoscanList(ScanMode scanmode, const std::shared_ptr<Au
     commit("updateAutoscanList delete");
 }
 
-std::shared_ptr<AutoscanList> SQLDatabase::getAutoscanList(ScanMode scanmode)
+std::shared_ptr<AutoscanManager> SQLDatabase::getAutoscanList(ScanMode scanmode)
 {
     std::string selectSql = fmt::format("{2} WHERE {0}{3}{1}.{0}scan_mode{1} = {4}", table_quote_begin, table_quote_end, sql_autoscan_query, AUS_ALIAS, quote(AutoscanDirectory::mapScanMode(scanmode)));
 
@@ -2085,7 +2087,7 @@ std::shared_ptr<AutoscanList> SQLDatabase::getAutoscanList(ScanMode scanmode)
         throw DatabaseException("", "query error while fetching autoscan list");
 
     auto self = getSelf();
-    auto ret = std::make_shared<AutoscanList>(self);
+    auto ret = std::make_shared<AutoscanManager>(self);
     std::unique_ptr<SQLRow> row;
     while ((row = res->nextRow())) {
         auto adir = _fillAutoscanDirectory(row);
@@ -2133,17 +2135,17 @@ std::shared_ptr<AutoscanDirectory> SQLDatabase::_fillAutoscanDirectory(const std
     ScanMode mode = AutoscanDirectory::remapScanMode(getCol(row, AutoscanColumn::ScanMode));
     bool recursive = remapBool(getCol(row, AutoscanColumn::Recursive));
     bool hidden = remapBool(getCol(row, AutoscanColumn::Hidden));
-    bool persistent = remapBool(getCol(row, AutoscanColumn::Persistent));
-    int interval = 0;
-    if (mode == ScanMode::Timed)
-        interval = std::stoi(getCol(row, AutoscanColumn::Interval));
     auto lastModified = std::chrono::seconds(std::stol(getCol(row, AutoscanColumn::LastModified)));
 
     log_info("Loading autoscan location: {}; recursive: {}, last_modified: {}", location.c_str(), recursive, lastModified > std::chrono::seconds::zero() ? fmt::format("{:%Y-%m-%d %H:%M:%S}", fmt::localtime(lastModified.count())) : "unset");
 
-    auto dir = std::make_shared<AutoscanDirectory>(location, mode, recursive, persistent);
-    dir->setInterval(std::chrono::seconds(interval));
-    dir->setHidden(hidden);
+    std::shared_ptr<AutoscanDirectory> dir = nullptr;
+    if (mode == ScanMode::Timed) {
+        auto interval = std::chrono::seconds(std::stoi(getCol(row, AutoscanColumn::Interval)));
+        dir = std::make_shared<TimedAutoscanDirectory>(location, recursive, hidden, interval, AutoscanSource::Web);
+    } else {
+        dir = std::make_shared<INotifyAutoscanDirectory>(location, recursive, hidden, AutoscanSource::Web);
+    }
     dir->setObjectID(objectID);
     dir->setDatabaseID(databaseID);
     dir->setCurrentLMT("", lastModified);
@@ -2186,7 +2188,7 @@ void SQLDatabase::addAutoscanDirectory(const std::shared_ptr<AutoscanDirectory>&
         quote(AutoscanDirectory::mapScanMode(adir->getScanMode())),
         quote(adir->isRecursive()),
         quote(adir->getHidden()),
-        quote(adir->getInterval().count()),
+        adir->getScanMode() == ScanMode::Timed ? quote(std::dynamic_pointer_cast<TimedAutoscanDirectory>(adir)->getInterval().count()) : quote(0),
         quote(adir->getPreviousLMT().count()),
         quote(adir->isPersistent()),
         objectID >= 0 ? SQL_NULL : quote(adir->getLocation()),
@@ -2216,7 +2218,7 @@ void SQLDatabase::updateAutoscanDirectory(const std::shared_ptr<AutoscanDirector
         ColumnUpdate(identifier("scan_mode"), quote(AutoscanDirectory::mapScanMode(adir->getScanMode()))),
         ColumnUpdate(identifier("recursive"), quote(adir->isRecursive())),
         ColumnUpdate(identifier("hidden"), quote(adir->getHidden())),
-        ColumnUpdate(identifier("interval"), quote(adir->getInterval().count())),
+        ColumnUpdate(identifier("interval"), adir->getScanMode() == ScanMode::Timed ? quote(std::dynamic_pointer_cast<TimedAutoscanDirectory>(adir)->getInterval().count()) : quote(0)),
         ColumnUpdate(identifier("persistent"), quote(adir->isPersistent())),
         ColumnUpdate(identifier("location"), objectID >= 0 ? SQL_NULL : quote(adir->getLocation())),
         ColumnUpdate(identifier("path_ids"), pathIds.empty() ? SQL_NULL : quote(fmt::format(",{},", fmt::join(pathIds, ",")))),

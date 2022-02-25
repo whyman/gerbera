@@ -35,7 +35,7 @@
 #include "config_manager.h"
 #include "config_options.h"
 #include "content/autoscan/autoscan_directory.h"
-#include "content/autoscan/autoscan_list.h"
+#include "content/autoscan/autoscan_manager.h"
 
 class ConfigOption;
 class DirectoryTweak;
@@ -580,7 +580,7 @@ protected:
     /// \brief Creates an array of AutoscanDirectory objects from a XML nodeset.
     /// \param element starting element of the nodeset.
     /// \param scanmode add only directories with the specified scanmode to the array
-    bool createOptionFromNode(const pugi::xml_node& element, std::shared_ptr<AutoscanList>& result);
+    bool createOptionFromNode(const pugi::xml_node& element, std::shared_ptr<AutoscanManager>& result);
 
     bool updateItem(std::size_t i, const std::string& optItem, const std::shared_ptr<Config>& config, const std::shared_ptr<AutoscanDirectory>& entry, std::string& optValue, const std::string& status = "") const;
 

@@ -39,7 +39,7 @@
 #include "transcoding/transcoding.h"
 
 // forward declaration
-class AutoscanList;
+class AutoscanManager;
 class ClientConfigList;
 class DirectoryConfigList;
 class DynamicContentList;
@@ -68,7 +68,7 @@ public:
         throw std::runtime_error("Wrong option type dictionary");
     }
 
-    virtual std::shared_ptr<AutoscanList> getAutoscanListOption() const
+    virtual std::shared_ptr<AutoscanManager> getAutoscanListOption() const
     {
         throw std::runtime_error("Wrong option type autoscan list");
     }
@@ -200,15 +200,15 @@ private:
 
 class AutoscanListOption : public ConfigOption {
 public:
-    explicit AutoscanListOption(const std::shared_ptr<AutoscanList>& option)
+    explicit AutoscanListOption(const std::shared_ptr<AutoscanManager>& option)
         : option(option)
     {
     }
 
-    std::shared_ptr<AutoscanList> getAutoscanListOption() const override { return option; }
+    std::shared_ptr<AutoscanManager> getAutoscanListOption() const override { return option; }
 
 private:
-    std::shared_ptr<AutoscanList> option;
+    std::shared_ptr<AutoscanManager> option;
 };
 
 class ClientConfigListOption : public ConfigOption {
