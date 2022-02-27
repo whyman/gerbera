@@ -78,8 +78,8 @@ private:
     mutable std::mutex mutex;
     using AutoLock = std::scoped_lock<std::mutex>;
 
-    std::queue<std::shared_ptr<AutoscanDirectory>> monitorQueue;
-    std::queue<std::shared_ptr<AutoscanDirectory>> unmonitorQueue;
+    std::queue<std::reference_wrapper<AutoscanDirectory>> monitorQueue;
+    std::queue<std::reference_wrapper<AutoscanDirectory>> unmonitorQueue;
 
     // event mask with events to watch for (set by constructor);
     int events;
@@ -105,13 +105,13 @@ private:
 
     class WatchAutoscan : public Watch {
     public:
-        WatchAutoscan(bool startPoint, std::shared_ptr<AutoscanDirectory> adir)
+        WatchAutoscan(bool startPoint, AutoscanDirectory& adir)
             : Watch(WatchType::Autoscan)
-            , adir(std::move(adir))
+            , adir(adir)
             , startPoint(startPoint)
         {
         }
-        std::shared_ptr<AutoscanDirectory> getAutoscanDirectory() const { return adir; }
+        AutoscanDirectory& getAutoscanDirectory() const { return adir; }
         bool isStartPoint() const { return startPoint; }
         std::vector<std::string> getNonexistingPathArray() const { return nonexistingPathArray; }
         void setNonexistingPathArray(const std::vector<std::string>& nonexistingPathArray) { this->nonexistingPathArray = nonexistingPathArray; }
@@ -122,7 +122,7 @@ private:
         const std::vector<int>& getDescendants() const { return descendants; }
 
     private:
-        std::shared_ptr<AutoscanDirectory> adir;
+        AutoscanDirectory& adir;
         bool startPoint;
         std::vector<int> descendants;
         std::vector<std::string> nonexistingPathArray;
@@ -166,18 +166,18 @@ private:
 
     std::unordered_map<int, std::shared_ptr<Wd>> watches;
 
-    void monitorUnmonitorRecursive(const fs::directory_entry& startPath, bool unmonitor, const std::shared_ptr<AutoscanDirectory>& adir, bool startPoint, bool followSymlinks);
-    int monitorDirectory(const fs::path& path, const std::shared_ptr<AutoscanDirectory>& adir, bool startPoint, const std::vector<std::string>* pathArray = nullptr);
-    void unmonitorDirectory(const fs::path& path, const std::shared_ptr<AutoscanDirectory>& adir);
+    void monitorUnmonitorRecursive(const fs::directory_entry& startPath, bool unmonitor, const AutoscanDirectory& adir, bool startPoint, bool followSymlinks);
+    int monitorDirectory(const fs::path& path, const AutoscanDirectory& adir, bool startPoint, const std::vector<std::string>* pathArray = nullptr);
+    void unmonitorDirectory(const fs::path& path, const AutoscanDirectory& adir);
 
-    static std::shared_ptr<WatchAutoscan> getAppropriateAutoscan(const std::shared_ptr<Wd>& wdObj, const std::shared_ptr<AutoscanDirectory>& adir);
+    static std::shared_ptr<WatchAutoscan> getAppropriateAutoscan(const std::shared_ptr<Wd>& wdObj, const AutoscanDirectory& adir);
     static std::shared_ptr<WatchAutoscan> getAppropriateAutoscan(const std::shared_ptr<Wd>& wdObj, const fs::path& path);
     static std::shared_ptr<WatchAutoscan> getStartPoint(const std::shared_ptr<Wd>& wdObj);
 
     bool removeFromWdObj(const std::shared_ptr<Wd>& wdObj, const std::shared_ptr<Watch>& toRemove);
 
-    void monitorNonexisting(const fs::path& path, const std::shared_ptr<AutoscanDirectory>& adir);
-    void recheckNonexistingMonitor(int curWd, const std::vector<std::string>& pathAr, const std::shared_ptr<AutoscanDirectory>& adir);
+    void monitorNonexisting(const fs::path& path, const AutoscanDirectory& adir);
+    void recheckNonexistingMonitor(int curWd, const std::vector<std::string>& pathAr, const AutoscanDirectory& adir);
     void recheckNonexistingMonitors(int wd, const std::shared_ptr<Wd>& wdObj);
     void removeNonexistingMonitor(int wd, const std::shared_ptr<Wd>& wdObj, const std::vector<std::string>& pathAr);
 
@@ -186,7 +186,7 @@ private:
     void checkMoveWatches(int wd, const std::shared_ptr<Wd>& wdObj);
     void removeWatchMoves(int wd);
 
-    void addDescendant(int startPointWd, int addWd, const std::shared_ptr<AutoscanDirectory>& adir);
+    void addDescendant(int startPointWd, int addWd, const AutoscanDirectory& adir);
     void removeDescendants(int wd);
 
     /// \brief is set to true by shutdown() if the inotify thread should terminate

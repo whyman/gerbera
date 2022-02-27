@@ -32,9 +32,9 @@
 #include <vector>
 
 #include "util/grb_fs.h"
+#include "content/autoscan/autoscan_directory.h"
 
 // forward declaration
-class AutoscanDirectory;
 class TimedAutoscanDirectory;
 class INotifyAutoscanDirectory;
 class Config;
@@ -46,7 +46,7 @@ public:
     bool recursive = true;
     bool hidden = false;
     bool rescanResource = true;
-    std::shared_ptr<AutoscanDirectory> adir;
+    std::optional<AutoscanDirectory> adir;
     std::vector<std::string> resourcePatterns;
 
     void mergeOptions(const std::shared_ptr<Config>& config, const fs::path& location);

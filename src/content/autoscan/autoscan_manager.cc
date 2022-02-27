@@ -190,23 +190,28 @@ void AutoscanManager::remove(std::size_t id, bool edit)
     }
 }
 
-std::shared_ptr<AutoscanManager> AutoscanManager::removeIfSubdir(const fs::path& parent)
+int AutoscanManager::removeIfSubdir(const fs::path& parent)
 {
     AutoLock lock(mutex);
+    int removed = 0;
+    for (auto it = autoscanMap.begin(); it != autoscanMap.end();) {
+        if (it->first < parent) {
+            log_debug("Removing {}", it->first.string());
 
-    auto rmIdList = std::make_shared<AutoscanManager>(database);
-
-    for (auto it = list.begin(); it != list.end();) {
-        auto dir = *it;
-
-        if (parent <= dir->getLocation()) {
-            it = list.erase(it);
-            continue;
+            if (it->second.getScanMode() == ScanMode::INotify) {
+                inotify.unmonitor(it->second);
+            } else if (it->second.getScanMode() == ScanMode::Timed) {
+                // TODO FIXME
+                //timer->removeTimerSubscriber(this, rmList->get(i)->getTimerParameter(), true);
+            }
+            it = autoscanMap.erase(it);
+            removed++;
         }
-        ++it;
+        else {
+            it++;
+        }
     }
-
-    return rmIdList;
+    return removed;
 }
 
 void AutoscanManager::notifyAll(Timer::Subscriber* sub)
@@ -271,8 +276,8 @@ void AutoscanManager::handlePersistentAutoscanRecreate(const std::shared_ptr<Aut
 //    database->updateAutoscanDirectory(adir);
 }
 
-void AutoscanManager::setAutoscanDirectory(const std::shared_ptr<AutoscanDirectory>& dir)
-{
+//void AutoscanManager::setAutoscanDirectory(const std::shared_ptr<AutoscanDirectory>& dir)
+//{
     // TODO FIXME
 //    // We will have to change this for other scan modes
 //    auto original = autoscan_timed->getByObjectID(dir->getObjectID());
@@ -365,4 +370,10 @@ void AutoscanManager::setAutoscanDirectory(const std::shared_ptr<AutoscanDirecto
     //    database->updateAutoscanDirectory(copy);
     //    if (original->getScanMode() != copy->getScanMode())
     //        session_manager->containerChangedUI(copy->getObjectID());
+//}
+
+AutoscanManager::~AutoscanManager()
+{
+    log_debug("updating last_modified data for autoscan in database...");
+    updateLMinDB();
 }

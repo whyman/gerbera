@@ -58,7 +58,7 @@ public:
         bool async, bool lowPriority, bool cancellable) = 0;
     virtual std::shared_ptr<CdsObject> createObjectFromFile(const fs::directory_entry& dirEnt, bool followSymlinks, bool allowFifo) = 0;
     virtual int ensurePathExistence(const fs::path& path) const = 0;
-    virtual void rescanDirectory(const std::shared_ptr<AutoscanDirectory>& adir, int objectId, fs::path descPath = {}, bool cancellable = true) = 0;
+    virtual void rescanDirectory(const AutoscanDirectory& adir, int objectId, fs::path descPath = {}, bool cancellable = true) = 0;
 
     // NEW API
     virtual void onPathCreated(fs::path path) = 0;

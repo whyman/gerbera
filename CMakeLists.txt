@@ -248,7 +248,7 @@ add_library(libgerbera STATIC
         src/web/tasks.cc
         src/web/web_autoscan.cc
         src/web/web_update.cc
-        src/content/autoscan/timed_autoscan_directory.cc src/content/autoscan/timed_autoscan_directory.h src/content/autoscan/inotify_autoscan_directory.cc src/content/autoscan/inotify_autoscan_directory.h)
+        src/content/autoscan/timed_autoscan_directory.cc src/content/autoscan/timed_autoscan_directory.h src/content/autoscan/inotify_autoscan_directory.cc src/content/autoscan/inotify_autoscan_directory.h src/content/file_processor.h src/content/autoscan/directory_monitor.h)
 target_include_directories(libgerbera PUBLIC "${CMAKE_SOURCE_DIR}/src")
 
 add_executable(gerbera src/main.cc)

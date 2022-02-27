@@ -38,6 +38,7 @@ enum class ScanMode;
 class AutoscanManager final {
 public:
     AutoscanManager(std::shared_ptr<Database> database, std::shared_ptr<Config> config, FileProcessor& processor);
+    ~AutoscanManager();
 
     /// \brief Adds a new AutoscanDirectory to the list.
     ///
@@ -60,7 +61,7 @@ public:
     /// \brief removes the AutoscanDirectory if it is a subdirectory of a given location.
     /// \param parent parent directory.
     /// \return AutoscanList of removed directories, where each directory object in the list is a copy and not the original reference.
-    std::shared_ptr<AutoscanManager> removeIfSubdir(const fs::path& parent);
+    int removeIfSubdir(const fs::path& parent);
 
     /// \brief Send notification for each directory that is stored in the list.
     ///
@@ -76,15 +77,8 @@ public:
     /// \brief Get an AutoscanDirectory given by location on disk from the watch list.
     const AutoscanDirectory& getAutoscanDirectory(const fs::path& location) const;
 
-    /// \brief returns an array of all autoscan directories
-    std::vector<std::shared_ptr<AutoscanDirectory>> getAutoscanDirectories() const;
-
     /// \brief Removes an AutoscanDirectrory (found by scanID) from the watch list.
     void removeAutoscanDirectory(const std::shared_ptr<AutoscanDirectory>& adir);
-
-    /// \brief Update autoscan parameters for an existing autoscan directory
-    /// or add a new autoscan directory
-    void setAutoscanDirectory(const std::shared_ptr<AutoscanDirectory>& dir);
 
     /// \brief handles the removal of a persistent autoscan directory
     void handlePeristentAutoscanRemove(const std::shared_ptr<AutoscanDirectory>& adir);
