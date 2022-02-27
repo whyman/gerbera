@@ -420,20 +420,6 @@ void ConfigManager::load(const fs::path& userHome)
     args.clear();
 #endif
 
-#ifdef HAVE_INOTIFY
-    auto configTimedList = getAutoscanListOption(CFG_IMPORT_AUTOSCAN_TIMED_LIST);
-    auto configInotifyList = getAutoscanListOption(CFG_IMPORT_AUTOSCAN_INOTIFY_LIST);
-
-    for (std::size_t i = 0; i < configInotifyList->size(); i++) {
-        auto iDir = configInotifyList->get(i);
-        for (std::size_t j = 0; j < configTimedList->size(); j++) {
-            auto tDir = configTimedList->get(j);
-            if (iDir->getLocation() == tDir->getLocation())
-                throw_std_runtime_error("Error in config file: same path used in both inotify and timed scan modes");
-        }
-    }
-#endif
-
     // read online content options
 
 #ifdef ATRAILERS
@@ -559,7 +545,7 @@ std::vector<std::string> ConfigManager::getArrayOption(config_option_t option) c
     return optionValue->getArrayOption();
 }
 
-std::shared_ptr<AutoscanManager> ConfigManager::getAutoscanListOption(config_option_t option) const
+std::vector<AutoscanDirectory> ConfigManager::getAutoscanListOption(config_option_t option) const
 {
     auto optionValue = options.at(option);
     if (!optionValue) {

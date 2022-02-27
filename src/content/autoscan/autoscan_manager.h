@@ -28,6 +28,7 @@
 
 #include "util/timer.h"
 #include "autoscan_inotify.h"
+#include "content/file_processor.h"
 
 // forward declaration
 class Database;
@@ -36,7 +37,7 @@ enum class ScanMode;
 
 class AutoscanManager final {
 public:
-    explicit AutoscanManager(std::shared_ptr<Database> database, std::shared_ptr<Config> config);
+    AutoscanManager(std::shared_ptr<Database> database, std::shared_ptr<Config> config, FileProcessor& processor);
 
     /// \brief Adds a new AutoscanDirectory to the list.
     ///
@@ -95,8 +96,6 @@ private:
     std::size_t origSize {};
     std::map<std::size_t, std::shared_ptr<AutoscanDirectory>> indexMap;
 
-
-
     mutable std::recursive_mutex mutex;
     using AutoLock = std::scoped_lock<std::recursive_mutex>;
 
@@ -113,13 +112,16 @@ private:
         }
     };
 
-    std::unordered_map<fs::path, AutoscanDirectory, KeyHasher> autoscans;
-#ifdef HAVE_INOTIFY
-    std::unique_ptr<AutoscanInotify> inotify;
-#endif
+    std::unordered_map<fs::path, AutoscanDirectory, KeyHasher> autoscanMap;
 
     std::shared_ptr<Config> config;
     std::shared_ptr<Database> database;
+    FileProcessor& fileProcessor;
+
+#ifdef HAVE_INOTIFY
+    AutoscanInotify inotify;
+#endif
+
 };
 
 #endif //__AUTOSCAN_LIST_H__

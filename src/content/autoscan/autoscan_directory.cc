@@ -104,7 +104,7 @@ void AutoscanDirectory::setLocation(const fs::path& location)
     this->location = location;
 }
 
-const char* AutoscanDirectory::mapScanMode(ScanMode scanmode)
+std::string_view AutoscanDirectory::mapScanMode(ScanMode scanmode)
 {
     switch (scanmode) {
     case ScanMode::Timed:
@@ -123,4 +123,14 @@ ScanMode AutoscanDirectory::remapScanMode(const std::string& scanmode)
         return ScanMode::INotify;
 
     throw_std_runtime_error("Illegal scanmode ({}) given to remapScanMode()", scanmode);
+}
+std::string_view AutoscanDirectory::mapAutoscanSource(AutoscanSource source)
+{
+    switch (source) {
+    case AutoscanSource::Web:
+        return "Web";
+    case AutoscanSource::ConfigFile:
+        return "ConfigFile";
+    }
+    throw_std_runtime_error("Illegal source ({}) given to mapAutoscanSource()", source);
 }

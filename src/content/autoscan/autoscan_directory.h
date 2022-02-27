@@ -118,7 +118,8 @@ public:
     [[nodiscard]] unsigned int getActiveScanCount() const { return activeScanCount; }
 
     /* helpers for autoscan stuff */
-    static const char* mapScanMode(ScanMode scanmode);
+    static std::string_view mapScanMode(ScanMode scanmode);
+    static std::string_view mapAutoscanSource(AutoscanSource source);
     static ScanMode remapScanMode(const std::string& scanmode);
 
     bool isPersistent() const { return source == AutoscanSource::ConfigFile; };

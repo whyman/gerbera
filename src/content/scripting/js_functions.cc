@@ -173,7 +173,7 @@ duk_ret_t js_addCdsObject(duk_context* ctx)
                     asSetting.rescanResource = false;
                     asSetting.mergeOptions(config, loc);
 
-                    pcdId = cm->addFile(dirEnt, rootPath, asSetting, false);
+                    pcdId = cm->addFile(dirEnt, rootPath, asSetting, false, false, false);
                     if (pcdId == INVALID_OBJECT_ID) {
                         log_error("Failed to add object {}", dirEnt.path().string());
                         return 0;

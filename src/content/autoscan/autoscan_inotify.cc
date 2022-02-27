@@ -37,10 +37,8 @@
 #include "content/content_manager.h"
 #include "database/database.h"
 
-AutoscanInotify::AutoscanInotify(const std::shared_ptr<ContentManager>& content)
-    : config(content->getContext()->getConfig())
-    , database(content->getContext()->getDatabase())
-    , content(content)
+AutoscanInotify::AutoscanInotify(const AutoscanManager& manager, FileProcessor& fileProcessor, bool followSymlinks)
+    : DirectoryMonitor(fileProcessor, followSymlinks), manager(manager)
 {
     std::error_code ec;
     if (isRegularFile(INOTIFY_MAX_USER_WATCHES_FILE, ec)) {
@@ -107,7 +105,7 @@ void AutoscanInotify::threadProc()
 
                 if (adir->isRecursive()) {
                     log_debug("Removing recursive watch: {}", location.c_str());
-                    monitorUnmonitorRecursive(dirEnt, true, adir, true, config->getBoolOption(CFG_IMPORT_FOLLOW_SYMLINKS));
+                    monitorUnmonitorRecursive(dirEnt, true, adir, true, followSymlinks);
                 } else {
                     log_debug("Removing non-recursive watch: {}", location.c_str());
                     unmonitorDirectory(location, adir);
@@ -130,17 +128,18 @@ void AutoscanInotify::threadProc()
                     continue;
                 }
 
+                // TODO WTF Why do we rescan the entire autoscan dir for every inotify change?!
                 auto dirEnt = fs::directory_entry(location, ec);
                 if (!ec) {
                     // handle dir recursively
                     if (adir->isRecursive()) {
                         log_debug("Adding recursive watch: {}", location.c_str());
-                        monitorUnmonitorRecursive(dirEnt, false, adir, true, config->getBoolOption(CFG_IMPORT_FOLLOW_SYMLINKS));
+                        monitorUnmonitorRecursive(dirEnt, false, adir, true, followSymlinks);
                     } else {
                         log_debug("Adding non-recursive watch: {}", location.c_str());
                         monitorDirectory(location, adir, true);
                     }
-                    content->rescanDirectory(adir, adir->getObjectID(), location, false);
+                    fileProcessor.rescanDirectory(adir, adir->getObjectID(), location, false);
                 } else {
                     log_error("Failed to read {}: {}", location.c_str(), ec.message());
                 }
@@ -199,12 +198,12 @@ void AutoscanInotify::threadProc()
                             log_debug("Detected new dir, adding to inotify: {}", path.c_str());
                             auto dirEnt = fs::directory_entry(path, ec);
                             if (!ec) {
-                                monitorUnmonitorRecursive(dirEnt, false, adir, false, config->getBoolOption(CFG_IMPORT_FOLLOW_SYMLINKS));
+                                monitorUnmonitorRecursive(dirEnt, false, adir, false, followSymlinks);
                             } else {
                                 log_error("Failed to read {}: {}", path.c_str(), ec.message());
                             }
                         } else {
-                            log_debug("Detected new dir, irgnoring because it's hidden: {}", path.c_str());
+                            log_debug("Detected new dir, ignoring because it's hidden: {}", path.c_str());
                         }
                     }
                 }
@@ -227,9 +226,8 @@ void AutoscanInotify::threadProc()
                             }
                         }
 
-                        int objectID = database->findObjectIDByPath(path, !(mask & IN_ISDIR));
-                        if (objectID != INVALID_OBJECT_ID)
-                            content->removeObject(adir, objectID, !(mask & IN_MOVED_TO));
+                        fileProcessor.onPathRemoved(path);
+
                     }
                     // new file
                     if (mask & (IN_CLOSE_WRITE | IN_MOVED_TO | IN_CREATE)) {
@@ -238,7 +236,7 @@ void AutoscanInotify::threadProc()
                         if (!ec) {
                             AutoScanSetting asSetting;
                             asSetting.adir = adir;
-                            asSetting.followSymlinks = config->getBoolOption(CFG_IMPORT_FOLLOW_SYMLINKS);
+                            asSetting.followSymlinks = followSymlinks;
                             asSetting.recursive = adir->isRecursive();
                             asSetting.hidden = adir->getHidden();
                             asSetting.rescanResource = true;
@@ -265,7 +263,7 @@ void AutoscanInotify::threadProc()
     }
 }
 
-void AutoscanInotify::monitor(const std::shared_ptr<AutoscanDirectory>& dir)
+void AutoscanInotify::monitor(AutoscanDirectory& dir)
 {
     assert(dir->getScanMode() == ScanMode::INotify);
     log_debug("Requested to monitor \"{}\"", dir->getLocation().c_str());
@@ -274,7 +272,7 @@ void AutoscanInotify::monitor(const std::shared_ptr<AutoscanDirectory>& dir)
     inotify->stop();
 }
 
-void AutoscanInotify::unmonitor(const std::shared_ptr<AutoscanDirectory>& dir)
+void AutoscanInotify::unmonitor(AutoscanDirectory& dir)
 {
     // must not be persistent
     assert(!dir->isPersistent());
@@ -400,12 +398,12 @@ void AutoscanInotify::checkMoveWatches(int wd, const std::shared_ptr<Wd>& wdObj)
                     if (adir->isPersistent()) {
                         monitorNonexisting(path, adir);
                         // TODO FIXME
-                        //content->handlePeristentAutoscanRemove(adir);
+                        //manager->handlePeristentAutoscanRemove(adir);
                     }
 
                     int objectID = database->findObjectIDByPath(path, true);
                     if (objectID != INVALID_OBJECT_ID)
-                        content->removeObject(adir, objectID, false);
+                        manager->removeObject(adir, objectID, false);
                 }
             } catch (const std::out_of_range&) {
             } // Not found in map

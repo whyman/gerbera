@@ -264,7 +264,7 @@ public:
     virtual void storeInternalSetting(const std::string& key, const std::string& value) = 0;
 
     /* autoscan methods */
-    virtual std::shared_ptr<AutoscanManager> getAutoscanList(ScanMode scanode) = 0;
+    virtual std::vector<AutoscanDirectory> getAutoscanList(ScanMode scanode) = 0;
     virtual void updateAutoscanList(ScanMode scanmode, const std::shared_ptr<AutoscanManager>& list) = 0;
 
     /* config methods */

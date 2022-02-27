@@ -153,33 +153,6 @@ void ContentManager::run()
 #ifdef HAVE_JS
     initJS();
 #endif
-
-    autoscan_timed->notifyAll(this);
-
-#ifdef HAVE_INOTIFY
-    if (config->getBoolOption(CFG_IMPORT_AUTOSCAN_USE_INOTIFY)) {
-        /// \todo change this (we need a new autoscan architecture)
-        for (std::size_t i = 0; i < autoscan_inotify->size(); i++) {
-            auto adir = autoscan_inotify->get(i);
-            if (!adir) {
-                continue;
-            }
-
-            inotify->monitor(adir);
-            auto param = std::make_shared<Timer::Parameter>(Timer::Parameter::timer_param_t::IDAutoscan, adir->getScanID());
-            log_debug("Adding one-shot inotify scan");
-            timer->addTimerSubscriber(this, std::chrono::minutes(1), param, true);
-        }
-    }
-#endif
-
-    for (std::size_t i = 0; i < autoscan_timed->size(); i++) {
-        auto adir = autoscan_timed->get(i);
-        auto param = std::make_shared<Timer::Parameter>(Timer::Parameter::timer_param_t::IDAutoscan, adir->getScanID());
-        // TODO FIXME
-        // log_debug("Adding timed scan with interval {}", adir->getInterval().count());
-        //timer->addTimerSubscriber(this, adir->getInterval(), param, false);
-    }
 }
 
 void ContentManager::registerExecutor(const std::shared_ptr<Executor>& exec)
@@ -1662,4 +1635,20 @@ void CMFetchOnlineContentTask::run()
         log_error("{}", ex.what());
     }
 }
+
+void ContentManager::onPathCreated(fs::path path)
+{
+}
+
+void ContentManager::onPathUpdated(fs::path path)
+{
+}
+
+void ContentManager::onPathRemoved(fs::path path)
+{
+    int objectID = database->findObjectIDByPath(path);
+    if (objectID != INVALID_OBJECT_ID)
+        removeObject(nullptr, objectID, false);//!(mask & IN_MOVED_TO));
+}
+
 #endif // ONLINE_SERVICES

@@ -384,7 +384,7 @@ public:
 
     /// \brief returns a config option of type AutoscanList
     /// \param option to retrieve
-    virtual std::shared_ptr<AutoscanManager> getAutoscanListOption(config_option_t option) const = 0;
+    virtual std::vector<AutoscanDirectory> getAutoscanListOption(config_option_t option) const = 0;
 
     /// \brief returns a config option of type ClientConfigList
     /// \param option to retrieve

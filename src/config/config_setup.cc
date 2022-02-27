@@ -863,7 +863,7 @@ std::string ConfigAutoscanSetup::getItemPath(int index, config_option_t propOpti
 /// \brief Creates an array of AutoscanDirectory objects from a XML nodeset.
 /// \param element starting element of the nodeset.
 /// \param scanmode add only directories with the specified scanmode to the array
-bool ConfigAutoscanSetup::createOptionFromNode(const pugi::xml_node& element, std::shared_ptr<AutoscanManager>& result)
+bool ConfigAutoscanSetup::createOptionFromNode(const pugi::xml_node& element, std::vector<AutoscanDirectory>& result)
 {
     if (!element)
         return true;
@@ -890,15 +890,15 @@ bool ConfigAutoscanSetup::createOptionFromNode(const pugi::xml_node& element, st
         auto cs = ConfigDefinition::findConfigSetup<ConfigBoolSetup>(ATTR_AUTOSCAN_DIRECTORY_HIDDENFILES);
         bool hidden = cs->hasXmlElement(child) ? cs->getXmlContent(child) : hiddenFiles;
 
-        std::shared_ptr<AutoscanDirectory> dir;
-        if (mode == ScanMode::Timed) {
-            auto interval = std::chrono::seconds(ConfigDefinition::findConfigSetup<ConfigIntSetup>(ATTR_AUTOSCAN_DIRECTORY_INTERVAL)->getXmlContent(child));
-            dir = std::make_shared<TimedAutoscanDirectory>(location, recursive, hidden, interval, AutoscanSource::ConfigFile);
-        } else if (mode == ScanMode::INotify) {
-            dir = std::make_shared<INotifyAutoscanDirectory>(location, recursive, hidden, AutoscanSource::ConfigFile);
-        }
         try {
-            result->add(dir);
+            if (mode == ScanMode::Timed) {
+                    auto interval = std::chrono::seconds(ConfigDefinition::findConfigSetup<ConfigIntSetup>(ATTR_AUTOSCAN_DIRECTORY_INTERVAL)->getXmlContent(child));
+                    auto dir = TimedAutoscanDirectory(location, recursive, hidden, interval, AutoscanSource::ConfigFile);
+                    result.push_back(dir);
+            } else if (mode == ScanMode::INotify) {
+                    auto dir = INotifyAutoscanDirectory(location, recursive, hidden, AutoscanSource::ConfigFile);
+                    result.push_back(dir);
+            }
         } catch (const std::runtime_error& e) {
             log_error("Could not add {}: {}", location.string(), e.what());
             return false;
@@ -997,7 +997,7 @@ void ConfigAutoscanSetup::makeOption(const pugi::xml_node& root, const std::shar
 
 std::shared_ptr<ConfigOption> ConfigAutoscanSetup::newOption(const pugi::xml_node& optValue)
 {
-    auto result = std::make_shared<AutoscanManager>(nullptr);
+    std::vector<AutoscanDirectory> result;
     if (!createOptionFromNode(optValue, result)) {
         throw_std_runtime_error("Init {} autoscan failed '{}'", xpath, optValue);
     }

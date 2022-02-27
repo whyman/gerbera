@@ -39,7 +39,8 @@
 
 #include "cds_objects.h"
 #include "common.h"
-#include "content/autoscan/autoscan_directory.h"
+#include "autoscan/autoscan_directory.h"
+#include "file_processor.h"
 #include "context.h"
 #include "util/generic_task.h"
 #include "util/thread_runner.h"
@@ -137,7 +138,7 @@ public:
 };
 #endif
 
-class ContentManager : public Timer::Subscriber, public std::enable_shared_from_this<ContentManager> {
+class ContentManager : public Timer::Subscriber, public FileProcessor, public std::enable_shared_from_this<ContentManager> {
 public:
     ContentManager(const std::shared_ptr<Context>& context,
         const std::shared_ptr<Server>& server, std::shared_ptr<Timer> timer);
@@ -156,32 +157,6 @@ public:
     /// \brief Find a task identified by the task ID and invalidate it.
     void invalidateTask(unsigned int taskID, task_owner_t taskOwner = ContentManagerTask);
 
-    /* the functions below return true if the task has been enqueued */
-
-    /// \brief Adds a file or directory to the database.
-    /// \param dirEnt absolute path to the file
-    /// \param recursive recursive add (process subdirecotories)
-    /// \param async queue task or perform a blocking call
-    /// \param hidden true allows to import hidden files, false ignores them
-    /// \param rescanResource true allows to reload a directory containing a resource
-    /// \param queue for immediate processing or in normal order
-    /// \return object ID of the added file - only in blockign mode, when used in async mode this function will return INVALID_OBJECT_ID
-    int addFile(const fs::directory_entry& dirEnt, AutoScanSetting& asSetting,
-        bool async = true, bool lowPriority = false, bool cancellable = true);
-
-    /// \brief Adds a file or directory to the database.
-    /// \param dirEnt absolute path to the file
-    /// \param rootpath absolute path to the container root
-    /// \param recursive recursive add (process subdirecotories)
-    /// \param async queue task or perform a blocking call
-    /// \param hidden true allows to import hidden files, false ignores them
-    /// \param rescanResource true allows to reload a directory containing a resource
-    /// \param queue for immediate processing or in normal order
-    /// \return object ID of the added file - only in blockign mode, when used in async mode this function will return INVALID_OBJECT_ID
-    int addFile(const fs::directory_entry& dirEnt, const fs::path& rootpath, AutoScanSetting& asSetting,
-        bool async = true, bool lowPriority = false, bool cancellable = true);
-
-    int ensurePathExistence(const fs::path& path) const;
     void removeObject(const std::shared_ptr<AutoscanDirectory>& adir, int objectID, bool rescanResource, bool async = true, bool all = false);
 
     /// \brief Updates an object in the database using the given parameters.
@@ -189,8 +164,9 @@ public:
     /// \param parameters key value pairs of fields to be updated
     void updateObject(int objectID, const std::map<std::string, std::string>& parameters);
 
-    // returns nullptr if file does not exist or is ignored due to configuration
-    std::shared_ptr<CdsObject> createObjectFromFile(const fs::directory_entry& dirEnt, bool followSymlinks, bool allowFifo = false);
+    void onPathCreated(fs::path path) override;
+    void onPathUpdated(fs::path path) override;
+    void onPathRemoved(fs::path path) override;
 
 #ifdef ONLINE_SERVICES
     /// \brief Creates a layout based from data that is obtained from an

@@ -42,6 +42,7 @@
 #include "config/config.h"
 #include "context.h"
 #include "util/mt_inotify.h"
+#include "directory_monitor.h"
 
 // forward declaration
 class ContentManager;
@@ -49,9 +50,9 @@ class ContentManager;
 #define INOTIFY_ROOT (-1)
 #define INOTIFY_UNKNOWN_PARENT_WD (-2)
 
-class AutoscanInotify {
+class AutoscanInotify : public DirectoryMonitor {
 public:
-    explicit AutoscanInotify(const std::shared_ptr<ContentManager>& content);
+    explicit AutoscanInotify(const AutoscanManager& manager, FileProcessor& fileProcessor, bool followSymlinks);
     ~AutoscanInotify();
 
     AutoscanInotify(const AutoscanInotify&) = delete;
@@ -60,15 +61,13 @@ public:
     void run();
 
     /// \brief Start monitoring a directory
-    void monitor(const std::shared_ptr<AutoscanDirectory>& dir);
+    void monitor(AutoscanDirectory& dir) override;
 
     /// \brief Stop monitoring a directory
-    void unmonitor(const std::shared_ptr<AutoscanDirectory>& dir);
+    void unmonitor(AutoscanDirectory& dir) override;
 
 private:
-    std::shared_ptr<Config> config;
-    std::shared_ptr<Database> database;
-    std::shared_ptr<ContentManager> content;
+    const AutoscanManager& manager;
 
     void threadProc();
 

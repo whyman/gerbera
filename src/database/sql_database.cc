@@ -2078,7 +2078,7 @@ void SQLDatabase::updateAutoscanList(ScanMode scanmode, const std::shared_ptr<Au
     commit("updateAutoscanList delete");
 }
 
-std::shared_ptr<AutoscanManager> SQLDatabase::getAutoscanList(ScanMode scanmode)
+std::vector<AutoscanDirectory> SQLDatabase::getAutoscanList(ScanMode scanmode)
 {
     std::string selectSql = fmt::format("{2} WHERE {0}{3}{1}.{0}scan_mode{1} = {4}", table_quote_begin, table_quote_end, sql_autoscan_query, AUS_ALIAS, quote(AutoscanDirectory::mapScanMode(scanmode)));
 
